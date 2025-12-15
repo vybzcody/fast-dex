@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0B1321" />
+    <meta
+      name="description"
+      content="FastDEX - Lightning-fast decentralized exchange on Linera blockchain. Swap, provide liquidity and earn crypto on the fastest DEX."
+    />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="FastDEX" />
+    <meta
+      property="og:description"
+      content="Lightning-fast decentralized exchange on Linera blockchain"
+    />
+    <meta property="og:image" content="/socialshare.png" />
+    <meta property="og:url" content="" />
+    <meta property="og:type" content="website" />
+
+    <!-- Twitter Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="FastDEX" />
+    <meta
+      name="twitter:description"
+      content="Lightning-fast decentralized exchange on Linera blockchain"
+    />
+    <meta name="twitter:image" content="/socialshare.png" />
+    
+    <!-- Cross-Origin Isolation Shim for Linera WebAssembly -->
+    <script>
+    (() => {
+      const matchesAuthHost = (url) => {
+        try {
+          const u = new URL(url, document.baseURI);
+          return u.hostname === "relay.dynamicauth.com" || /\.dynamicauth\.com$/.test(u.hostname);
+        } catch {
+          return false;
+        }
+      };
+      const markCredentialless = (iframe) => {
+        try { iframe.credentialless = true; } catch { }
+      };
+      try {
+        const desc = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, "src");
+        if (desc && desc.set) {
+          const originalSet = desc.set;
+          Object.defineProperty(HTMLIFrameElement.prototype, "src", {
+            configurable: true, enumerable: desc.enumerable, get: desc.get,
+            set(value) {
+              if (matchesAuthHost(value)) markCredentialless(this);
+              return originalSet.call(this, value);
+            },
+          });
+        }
+      } catch { }
+    })();
+    </script>
+    
+    <title>FastDEX - Linera DEX</title>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+services:
+  amm:
+    build: .
+    ports:
+      - "5173:5173" # Frontend
+      - "8080:8080" # Faucet/Net
+      - "8081:8081" # GraphQL Service
+    volumes:
+      - .:/build
