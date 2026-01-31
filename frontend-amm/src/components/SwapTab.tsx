@@ -1,17 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowDownUp, Settings, ChevronDown } from 'lucide-react';
-
-interface TokenId {
-  chain: string;
-  address: string;
-  symbol: string;
-}
-
-interface Balance {
-  token: string;
-  amount: number;
-}
 
 interface SwapTabProps {
   fromToken: string;
@@ -22,7 +11,7 @@ interface SwapTabProps {
   setSwapAmount: (amount: string) => void;
   swapQuote: any;
   tokens: any[];
-  balances: Balance[];
+  balances: Record<string, string>;
   loading: boolean;
   onSwap: () => void;
 }
@@ -37,21 +26,13 @@ export const SwapTab = ({
   const [showToTokens, setShowToTokens] = useState(false);
 
   const getTokenData = (symbol: string) => {
-    const balance = balances.find(b => b.token === symbol)?.amount || 0;
-    // Mock price data for demo
-    const prices: Record<string, number> = {
-      'LINERA': 2.45,
-      'ETH': 2000,
-      'USDC': 1,
-      'GAME': 0.85,
-      'STABLE': 1.01
-    };
-
+    const balance = balances[symbol] || '0';
+    // Real price data would come from oracle/market feeds
     return {
       symbol,
       name: symbol,
-      balance,
-      price: prices[symbol] || 1
+      balance: parseFloat(balance),
+      price: 0 // Placeholder for real price data
     };
   };
 
@@ -60,7 +41,6 @@ export const SwapTab = ({
 
   const swapTokens = () => {
     const temp = fromToken;
-    const tempAmount = swapAmount;
     setFromToken(toToken);
     setToToken(temp);
     // Set the previous output as the new input amount
@@ -159,7 +139,7 @@ export const SwapTab = ({
           <span style={{ fontSize: '14px', color: '#888' }}>From</span>
           <span style={{ fontSize: '14px', color: '#888' }}>Balance: {fromTokenData.balance.toLocaleString()}</span>
         </div>
-        
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <input
             type="number"
@@ -176,8 +156,8 @@ export const SwapTab = ({
               color: 'white'
             }}
           />
-          
-          <div 
+
+          <div
             onClick={() => setShowFromTokens(!showFromTokens)}
             style={{
               display: 'flex',
@@ -207,7 +187,7 @@ export const SwapTab = ({
             <ChevronDown size={16} />
           </div>
         </div>
-        
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
           <span style={{ fontSize: '14px', color: '#888' }}>
             ~${(parseFloat(swapAmount || '0') * fromTokenData.price).toLocaleString()}
@@ -306,7 +286,7 @@ export const SwapTab = ({
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '14px' }}>
-                    {(balances.find(b => b.token === token.symbol)?.amount || 0).toLocaleString()}
+                    {balances[token.symbol] || '0'}
                   </div>
                   <div style={{ fontSize: '12px', color: '#888' }}>${getTokenData(token.symbol).price}</div>
                 </div>
@@ -345,7 +325,7 @@ export const SwapTab = ({
           <span style={{ fontSize: '14px', color: '#888' }}>To</span>
           {toToken && <span style={{ fontSize: '14px', color: '#888' }}>Balance: {toTokenData.balance.toLocaleString()}</span>}
         </div>
-        
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
             flex: 1,
@@ -355,8 +335,8 @@ export const SwapTab = ({
           }}>
             {swapQuote ? parseFloat(swapQuote.output).toFixed(6) : '0.0'}
           </div>
-          
-          <div 
+
+          <div
             onClick={() => setShowToTokens(!showToTokens)}
             style={{
               display: 'flex',
@@ -392,7 +372,7 @@ export const SwapTab = ({
             <ChevronDown size={16} />
           </div>
         </div>
-        
+
         <div style={{ textAlign: 'right', marginTop: '8px' }}>
           <span style={{ fontSize: '14px', color: '#888' }}>
             ~${(parseFloat(swapQuote?.output || '0') * (toTokenData?.price || 0)).toLocaleString()}
@@ -458,7 +438,7 @@ export const SwapTab = ({
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '14px' }}>
-                    {(balances.find(b => b.token === token.symbol)?.amount || 0).toLocaleString()}
+                    {balances[token.symbol] || '0'}
                   </div>
                   <div style={{ fontSize: '12px', color: '#888' }}>${getTokenData(token.symbol).price}</div>
                 </div>
@@ -493,8 +473,8 @@ export const SwapTab = ({
           padding: '16px',
           borderRadius: '12px',
           border: 'none',
-          background: loading || !swapAmount || !toToken 
-            ? '#333' 
+          background: loading || !swapAmount || !toToken
+            ? '#333'
             : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           color: loading || !swapAmount || !toToken ? '#666' : 'white',
           fontSize: '16px',

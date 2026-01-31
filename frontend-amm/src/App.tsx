@@ -124,7 +124,7 @@ const AnalyticsPage = () => (
 
 const NavBar = () => {
   const location = useLocation();
-  const { primaryWallet, setShowAuthFlow, setShowDynamicUserProfile, sdkHasLoaded } = useDynamicContext();
+  const { primaryWallet, setShowAuthFlow, sdkHasLoaded } = useDynamicContext();
   const isLoggedIn = useIsLoggedIn();
   const [showWalletSidebar, setShowWalletSidebar] = useState(false);
 

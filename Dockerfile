@@ -6,22 +6,18 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     protobuf-compiler \
     clang \
-    make \
-    jq \
-    curl
+    make
 
-# Install Linera tools (matching root version)
-RUN cargo install --locked linera-service@0.15.6 \
-    linera-storage-service@0.15.6
+RUN cargo install --locked linera-service@0.15.8 linera-storage-service@0.15.8
 
-# Install Node.js
-RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
-    && apt-get install -y nodejs \
+RUN apt-get install -y curl
+RUN curl https://raw.githubusercontent.com/creationix/nvm/v0.40.3/install.sh | bash \
+    && . ~/.nvm/nvm.sh \
+    && nvm install lts/krypton \
     && npm install -g pnpm
 
 WORKDIR /build
 
-# Healthcheck for Frontend
 HEALTHCHECK CMD ["curl", "-s", "http://localhost:5173"]
 
-ENTRYPOINT ["bash", "/build/run.bash"]
+ENTRYPOINT bash /build/run.bash

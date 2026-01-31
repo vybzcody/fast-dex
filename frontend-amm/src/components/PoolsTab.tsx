@@ -2,26 +2,14 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Droplets, TrendingUp, DollarSign, Percent, ExternalLink, Zap } from 'lucide-react';
 
-interface Pool {
-  id: number;
-  tokenA: { symbol: string };
-  tokenB: { symbol: string };
-  reserveA: string;
-  reserveB: string;
-  totalLiquidity: number;
-  volume24h: number;
-  fees24h: number;
-  apr: number;
-}
-
 interface PoolsTabProps {
   userPools: any[];
   tokens: any[];
-  loading: boolean;
   onAddLiquidity?: (tokenA: string, tokenB: string, amountA: string, amountB: string) => void;
+  onCreatePool?: (tokenA: string, tokenB: string, amountA: string, amountB: string, feeRate: number) => void;
 }
 
-export const PoolsTab = ({ userPools, tokens, loading, onAddLiquidity }: PoolsTabProps) => {
+export const PoolsTab = ({ userPools, tokens, onAddLiquidity, onCreatePool: _onCreatePool }: PoolsTabProps) => {
   const [showCreatePool, setShowCreatePool] = useState(false);
   const [selectedTokenA, setSelectedTokenA] = useState('');
   const [selectedTokenB, setSelectedTokenB] = useState('');
@@ -29,44 +17,20 @@ export const PoolsTab = ({ userPools, tokens, loading, onAddLiquidity }: PoolsTa
   const [amountB, setAmountB] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'my'>('all');
 
-  // Mock pool data for demonstration
-  const allPools: Pool[] = [
-    {
-      id: 1,
-      tokenA: { symbol: 'LINERA' },
-      tokenB: { symbol: 'ETH' },
-      reserveA: '1000',
-      reserveB: '0.5',
-      totalLiquidity: 2000000,
-      volume24h: 150000,
-      fees24h: 450,
-      apr: 12.5
-    },
-    {
-      id: 2,
-      tokenA: { symbol: 'USDC' },
-      tokenB: { symbol: 'ETH' },
-      reserveA: '50000',
-      reserveB: '25',
-      totalLiquidity: 100000,
-      volume24h: 75000,
-      fees24h: 225,
-      apr: 8.3
-    },
-    {
-      id: 3,
-      tokenA: { symbol: 'LINERA' },
-      tokenB: { symbol: 'USDC' },
-      reserveA: '2000',
-      reserveB: '4000',
-      totalLiquidity: 8000,
-      volume24h: 25000,
-      fees24h: 75,
-      apr: 15.2
-    }
-  ];
+  // Use real pools data instead of mock data
+  const allPools = userPools.map((pool, index) => ({
+    id: index + 1,
+    tokenA: pool.tokenA,
+    tokenB: pool.tokenB,
+    reserveA: pool.reserveA,
+    reserveB: pool.reserveB,
+    totalLiquidity: parseFloat(pool.reserveA) + parseFloat(pool.reserveB), // Simple calculation
+    volume24h: 0, // Would come from analytics in real implementation
+    fees24h: 0,
+    apr: 0
+  }));
 
-  const tokenList = ['LINERA', 'ETH', 'USDC', 'GAME', 'STABLE'];
+  const tokenList = tokens.map(token => token.symbol);
 
   const handleCreatePool = () => {
     if (onAddLiquidity && selectedTokenA && selectedTokenB && amountA && amountB) {
@@ -82,17 +46,17 @@ export const PoolsTab = ({ userPools, tokens, loading, onAddLiquidity }: PoolsTa
   return (
     <div style={{ position: 'relative' }}>
       {/* Header */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: '2rem' 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '2rem'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Droplets size={24} style={{ color: '#667eea' }} />
           <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 'bold' }}>Liquidity Pools</h3>
         </div>
-        
+
         <motion.button
           onClick={() => setShowCreatePool(true)}
           whileHover={{ scale: 1.05 }}
@@ -117,9 +81,9 @@ export const PoolsTab = ({ userPools, tokens, loading, onAddLiquidity }: PoolsTa
       </div>
 
       {/* Tab Navigation */}
-      <div style={{ 
-        display: 'flex', 
-        gap: '1rem', 
+      <div style={{
+        display: 'flex',
+        gap: '1rem',
         marginBottom: '2rem',
         background: '#1a1a1a',
         padding: '0.5rem',
@@ -162,11 +126,11 @@ export const PoolsTab = ({ userPools, tokens, loading, onAddLiquidity }: PoolsTa
       </div>
 
       {/* Pool Stats */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-        gap: '1rem', 
-        marginBottom: '2rem' 
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '1rem',
+        marginBottom: '2rem'
       }}>
         {[
           { label: 'Total Value Locked', value: '$2.1M', icon: DollarSign, color: '#4caf50' },
@@ -203,17 +167,17 @@ export const PoolsTab = ({ userPools, tokens, loading, onAddLiquidity }: PoolsTa
       </div>
 
       {/* Pool List */}
-      <div style={{ 
-        background: 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%)', 
-        borderRadius: '20px', 
+      <div style={{
+        background: 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%)',
+        borderRadius: '20px',
         border: '1px solid #333',
         overflow: 'hidden'
       }}>
         {/* Table Header */}
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr', 
-          gap: '1rem', 
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr',
+          gap: '1rem',
           padding: '1.5rem',
           background: 'rgba(0, 0, 0, 0.3)',
           borderBottom: '1px solid #333',
@@ -236,10 +200,10 @@ export const PoolsTab = ({ userPools, tokens, loading, onAddLiquidity }: PoolsTa
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
-            style={{ 
-              display: 'grid', 
-              gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr', 
-              gap: '1rem', 
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr',
+              gap: '1rem',
               padding: '1.5rem',
               borderBottom: index < allPools.length - 1 ? '1px solid #333' : 'none',
               cursor: 'pointer'
@@ -286,26 +250,26 @@ export const PoolsTab = ({ userPools, tokens, loading, onAddLiquidity }: PoolsTa
                 </div>
               </div>
             </div>
-            
+
             <div style={{ color: 'white', fontWeight: '600' }}>
               ${pool.totalLiquidity.toLocaleString()}
             </div>
-            
+
             <div style={{ color: 'white' }}>
               ${pool.volume24h.toLocaleString()}
             </div>
-            
+
             <div style={{ color: '#4caf50', fontWeight: '600' }}>
               ${pool.fees24h.toLocaleString()}
             </div>
-            
-            <div style={{ 
+
+            <div style={{
               color: pool.apr > 10 ? '#4caf50' : pool.apr > 5 ? '#ffa726' : '#888',
               fontWeight: '600'
             }}>
               {pool.apr}%
             </div>
-            
+
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button style={{
                 padding: '0.5rem 1rem',
@@ -481,8 +445,8 @@ export const PoolsTab = ({ userPools, tokens, loading, onAddLiquidity }: PoolsTa
                   style={{
                     flex: 1,
                     padding: '1rem',
-                    background: (!selectedTokenA || !selectedTokenB || !amountA || !amountB) 
-                      ? 'rgba(102, 126, 234, 0.3)' 
+                    background: (!selectedTokenA || !selectedTokenB || !amountA || !amountB)
+                      ? 'rgba(102, 126, 234, 0.3)'
                       : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                     border: 'none',
                     borderRadius: '12px',

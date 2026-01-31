@@ -16,24 +16,23 @@ interface Token {
 
 interface TokensTabProps {
   tokens: Token[];
-  loading: boolean;
 }
 
-export const TokensTab = ({ tokens, loading }: TokensTabProps) => {
+export const TokensTab = ({ tokens }: TokensTabProps) => {
   const [showCreateToken, setShowCreateToken] = useState(false);
   const [newTokenSymbol, setNewTokenSymbol] = useState('');
   const [newTokenName, setNewTokenName] = useState('');
   const [newTokenSupply, setNewTokenSupply] = useState('');
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
 
-  // Enhanced token data with mock prices and stats
+  // Use tokens as provided without adding mock data
   const enhancedTokens = tokens.map(token => ({
     ...token,
-    price: Math.random() * 100 + 1,
-    change24h: (Math.random() - 0.5) * 20,
-    volume24h: Math.random() * 1000000,
-    holders: Math.floor(Math.random() * 10000) + 100,
-    address: `0x${Math.random().toString(16).substr(2, 40)}`
+    address: token.id, // Use the token ID as address for now
+    price: 0, // Real price would come from oracle/market data
+    change24h: 0,
+    volume24h: 0,
+    holders: 0
   }));
 
   const copyToClipboard = (address: string) => {

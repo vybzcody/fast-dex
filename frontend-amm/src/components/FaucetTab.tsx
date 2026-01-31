@@ -2,16 +2,9 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Droplets, Coins, RotateCcw, Wallet } from 'lucide-react';
 import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
-import { LineraAdapter } from '../linera-adapter';
-import { usePersistentBalances } from '../hooks/usePersistentBalances';
+import { LineraClientAdapter } from '../linera-client';
 
 interface TokenId {
-  chain: string;
-  address: string;
-  symbol: string;
-}
-
-interface FaucetToken {
   chain: string;
   address: string;
   symbol: string;
@@ -26,43 +19,29 @@ export const FaucetTab = () => {
   const [lastClaimTime, setLastClaimTime] = useState<number | null>(null);
   const [cooldownTimeLeft, setCooldownTimeLeft] = useState<number>(0);
   const [claimedAmount, setClaimedAmount] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const { primaryWallet } = useDynamicContext();
-  const { addBalance, refreshBalances } = usePersistentBalances();
   const COOLDOWN_PERIOD = 60; // 1 minute cooldown
 
-  // Fetch available faucet tokens
+  // Fetch available faucet tokens from real GraphQL
   useEffect(() => {
     const fetchFaucetTokens = async () => {
       try {
         setIsLoading(true);
-        const adapter = LineraAdapter.getInstance();
-        // Fetch faucet tokens from the dex service
-        // For now, using pre-configured mock tokens
-        const mockTokens: TokenId[] = [
-          {
-            chain: 'ethereum',
-            address: 'mock_usdc',
-            symbol: 'MOCK_USDC'
-          },
-          {
-            chain: 'polygon',
-            address: 'mock_eth',
-            symbol: 'MOCK_ETH'
-          },
-          {
-            chain: 'base',
-            address: 'mock_btc',
-            symbol: 'MOCK_BTC'
-          }
-        ];
-
-        setTokens(mockTokens);
-        if (mockTokens.length > 0) {
-          setSelectedToken(mockTokens[0]);
+        setError(null);
+        const adapter = LineraClientAdapter.getInstance();
+        const result = await adapter.getFaucetTokens();
+        
+        if (result && result.length > 0) {
+          setTokens(result);
+          setSelectedToken(result[0]);
+        } else {
+          setError('No faucet tokens available');
         }
       } catch (error) {
         console.error('Error fetching faucet tokens:', error);
+        setError('Failed to load faucet tokens');
       } finally {
         setIsLoading(false);
       }
@@ -90,43 +69,42 @@ export const FaucetTab = () => {
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [lastClaimTime]);
+  }, [lastClaimTime, cooldownTimeLeft]);
 
   const handleClaim = async () => {
     if (!primaryWallet || !selectedToken) return;
     
     // Check cooldown
     if (lastClaimTime && (Date.now() - lastClaimTime) / 1000 < COOLDOWN_PERIOD) {
-      alert('Please wait for the cooldown period to finish');
+      setError('Please wait for the cooldown period to finish');
       return;
     }
 
     try {
       setIsClaiming(true);
+      setError(null);
+      
       const amount = parseFloat(claimAmount);
       if (isNaN(amount) || amount <= 0) {
-        alert('Please enter a valid amount');
+        setError('Please enter a valid amount');
         return;
       }
 
-      // Call the Linera contract to claim faucet tokens
-      const adapter = LineraAdapter.getInstance();
-      await adapter.claimFaucetTokens(selectedToken.symbol, claimAmount.toString());
-
-      // Update local balance
-      addBalance(selectedToken.symbol, amount);
+      // Call the real Linera contract to claim faucet tokens
+      const adapter = LineraClientAdapter.getInstance();
+      await adapter.claimFaucetTokens(selectedToken, claimAmount);
 
       setLastClaimTime(Date.now());
       setClaimedAmount(amount);
 
-      // Reset after showing success
+      // Reset success message after 3 seconds
       setTimeout(() => {
         setClaimedAmount(null);
       }, 3000);
 
     } catch (error) {
       console.error('Error claiming tokens:', error);
-      alert('Failed to claim tokens: ' + (error as Error).message);
+      setError('Failed to claim tokens: ' + (error as Error).message);
     } finally {
       setIsClaiming(false);
     }
@@ -152,6 +130,20 @@ export const FaucetTab = () => {
         </p>
       </motion.div>
 
+      {error && (
+        <div style={{
+          marginBottom: '1.5rem',
+          padding: '1rem',
+          borderRadius: '12px',
+          background: 'rgba(244, 67, 54, 0.15)',
+          border: '1px solid rgba(244, 67, 54, 0.3)',
+          color: '#f44336',
+          textAlign: 'center'
+        }}>
+          {error}
+        </div>
+      )}
+
       {isLoading ? (
         <div style={{ textAlign: 'center', padding: '2rem' }}>
           <div className="spinner" />
@@ -168,7 +160,7 @@ export const FaucetTab = () => {
               gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
               gap: '0.5rem'
             }}>
-              {tokens.map((token, index) => (
+              {tokens.map((token) => (
                 <button
                   key={`${token.chain}-${token.address}`}
                   onClick={() => setSelectedToken(token)}
@@ -216,7 +208,7 @@ export const FaucetTab = () => {
 
           <motion.button
             className="cauldron-button"
-            disabled={isClaiming || (lastClaimTime && (Date.now() - lastClaimTime) / 1000 < COOLDOWN_PERIOD)}
+            disabled={isClaiming || cooldownTimeLeft > 0}
             onClick={handleClaim}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -228,7 +220,7 @@ export const FaucetTab = () => {
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.5rem',
-              opacity: (lastClaimTime && (Date.now() - lastClaimTime) / 1000 < COOLDOWN_PERIOD) ? 0.6 : 1
+              opacity: cooldownTimeLeft > 0 ? 0.6 : 1
             }}
           >
             {isClaiming ? (
@@ -236,7 +228,7 @@ export const FaucetTab = () => {
                 <div className="spinner-small" />
                 Claiming...
               </>
-            ) : lastClaimTime && (Date.now() - lastClaimTime) / 1000 < COOLDOWN_PERIOD ? (
+            ) : cooldownTimeLeft > 0 ? (
               <>
                 <RotateCcw size={18} />
                 Wait {formatTime(cooldownTimeLeft)}
