@@ -66,6 +66,10 @@ export class LineraClientAdapter {
     return LineraClientAdapter.instance;
   }
 
+  public get isInitialized(): boolean {
+    return !!this.app;
+  }
+
   async loadConfig() {
     try {
       const response = await fetch('/config.json');
@@ -195,25 +199,32 @@ export class LineraClientAdapter {
     const q = `
       query {
         pools {
-          id
-          token0
-          token1
-          reserve0
-          reserve1
-          fee
+          tokenA {
+            chain
+            address
+            symbol
+          }
+          tokenB {
+            chain
+            address
+            symbol
+          }
+          reserveA
+          reserveB
+          feeRate
         }
       }
     `;
     try {
       const data = await this.query(q);
-      return (data?.pools || []).map((p: any) => ({
-        id: p.id,
-        tokenA: { chain: "LINERA", address: p.token0, symbol: "TKA" }, // Mock metadata as contract only stores IDs
-        tokenB: { chain: "LINERA", address: p.token1, symbol: "TKB" },
-        reserveA: p.reserve0,
-        reserveB: p.reserve1,
+      return (data?.pools || []).map((p: any, index: number) => ({
+        id: index.toString(), // Pools are keyed by tokens in backend, assigning simpler index for frontend key
+        tokenA: p.tokenA,
+        tokenB: p.tokenB,
+        reserveA: p.reserveA,
+        reserveB: p.reserveB,
         totalShares: p.totalShares || "0", 
-        feeRate: parseInt(p.fee) || 30
+        feeRate: p.feeRate
       }));
     } catch (e) {
       console.error("Error fetching pools:", e);
@@ -225,23 +236,29 @@ export class LineraClientAdapter {
     const q = `
       query {
         faucetTokens {
-          id
-          name
+          chain
+          address
           symbol
-          decimals
         }
       }
     `;
     try {
        const data = await this.query(q);
-       if (data?.faucetTokens) return data.faucetTokens;
+       if (data?.faucetTokens) {
+         return data.faucetTokens.map((t: any) => ({
+           id: t.symbol, // Using symbol as ID for now since that's unique in the detailed list
+           name: t.symbol.replace('MOCK_', ''),
+           symbol: t.symbol,
+           decimals: 18, // Backend doesn't store decimals yet, assuming 18
+           chain: t.chain,
+           address: t.address
+         }));
+       }
     } catch (e) {
        console.warn("Failed to fetch faucet tokens", e);
     }
     return [
-      { id: "MOCK_USDC", name: "USD Coin", symbol: "USDC", decimals: 6, chain: "LINERA", address: "0x..." },
-      { id: "MOCK_ETH", name: "Ethereum", symbol: "ETH", decimals: 18, chain: "LINERA", address: "0x..." },
-      { id: "MOCK_BTC", name: "Bitcoin", symbol: "BTC", decimals: 8, chain: "LINERA", address: "0x..." },
+      { id: "MOCK_USDC", name: "USD Coin", symbol: "USDC", decimals: 6, chain: "Ethereum", address: "0x..." }
     ];
   }
 
@@ -249,43 +266,62 @@ export class LineraClientAdapter {
     const targetAddress = address || this.provider?.address;
     if (!targetAddress) return [];
     
+    // Backend doesn't support filtering by owner in the query list yet, so we fetch all and filter
     const q = `
       query {
-        balances(owner: "${targetAddress}") {
-          tokenId
+        userBalances {
+          owner
+          token {
+            chain
+            address
+            symbol
+          }
           amount
-          symbol
         }
       }
     `;
     try {
       const data = await this.query(q);
-      return data?.balances || [];
+      const allBalances = data?.userBalances || [];
+      return allBalances
+        .filter((b: any) => b.owner === targetAddress)
+        .map((b: any) => ({
+          token_id: b.token.symbol,
+          amount: b.amount,
+          symbol: b.token.symbol
+        }));
     } catch (e) {
       console.error("Error fetching balances:", e);
       return [];
     }
   }
 
+  // Helper to format TokenId for GraphQL input
+  private formatTokenInput(token: any): string {
+    // Ensure we send the enum value for chain (e.g. "Ethereum") and strings for others
+    // We assume token object has chain, address, symbol from our internal interfaces
+    return `{ chain: ${token.chain}, address: "${token.address}", symbol: "${token.symbol}" }`;
+  }
+
   async claimFaucetTokens(token: any, amount: string) {
     const mutation = `
         mutation {
-            claim(tokenId: "${token.id}", amount: "${amount}")
+            claimFaucetTokens(
+                token: ${this.formatTokenInput(token)},
+                amount: "${amount}"
+            )
         }
     `;
     return await this.query(mutation);
   }
 
-  async swapTokens(fromToken: string, toToken: string, amount: string) {
+  async swapTokens(fromToken: any, toToken: any, amount: string) {
     const mutation = `
         mutation {
-            swap(
-                input: {
-                    token0: "${fromToken}",
-                    token1: "${toToken}",
-                    amountIn: "${amount}",
-                    amountOutMin: "0" 
-                }
+            swapTokens(
+                fromToken: ${this.formatTokenInput(fromToken)},
+                toToken: ${this.formatTokenInput(toToken)},
+                amount: "${amount}"
             )
         }
     `;
@@ -293,8 +329,8 @@ export class LineraClientAdapter {
   }
 
   async createPool(
-    tokenA: string,
-    tokenB: string,
+    tokenA: any,
+    tokenB: any,
     amountA: string,
     amountB: string,
     feeRate: number
@@ -302,11 +338,11 @@ export class LineraClientAdapter {
     const mutation = `
         mutation {
             createPool(
-                token0: "${tokenA}",
-                token1: "${tokenB}",
-                amount0: "${amountA}",
-                amount1: "${amountB}",
-                fee: "${feeRate}"
+                tokenA: ${this.formatTokenInput(tokenA)},
+                tokenB: ${this.formatTokenInput(tokenB)},
+                amountA: "${amountA}",
+                amountB: "${amountB}",
+                feeRate: ${feeRate}
             )
         }
     `;
@@ -314,20 +350,18 @@ export class LineraClientAdapter {
   }
 
   async addLiquidity(
-    tokenA: string,
-    tokenB: string,
+    tokenA: any,
+    tokenB: any,
     amountA: string,
     amountB: string
   ) {
     const mutation = `
         mutation {
             addLiquidity(
-                token0: "${tokenA}",
-                token1: "${tokenB}",
-                amount0Desired: "${amountA}",
-                amount1Desired: "${amountB}",
-                amount0Min: "0",
-                amount1Min: "0"
+                tokenA: ${this.formatTokenInput(tokenA)},
+                tokenB: ${this.formatTokenInput(tokenB)},
+                amountA: "${amountA}",
+                amountB: "${amountB}"
             )
         }
     `;
@@ -335,15 +369,15 @@ export class LineraClientAdapter {
   }
 
   async estimateSwap(
-    fromToken: string,
-    toToken: string,
+    fromToken: any,
+    toToken: any,
     amount: string
   ): Promise<string> {
     const q = `
         query {
             estimateSwap(
-                tokenIn: "${fromToken}",
-                tokenOut: "${toToken}",
+                tokenIn: ${this.formatTokenInput(fromToken)},
+                tokenOut: ${this.formatTokenInput(toToken)},
                 amountIn: "${amount}"
             )
         }

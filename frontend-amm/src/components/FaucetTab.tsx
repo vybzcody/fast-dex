@@ -24,15 +24,38 @@ export const FaucetTab = () => {
   const { primaryWallet } = useDynamicContext();
   const COOLDOWN_PERIOD = 60; // 1 minute cooldown
 
-  // Fetch available faucet tokens from real GraphQL
+  const adapter = LineraClientAdapter.getInstance();
+  const [isReady, setIsReady] = useState<boolean>(adapter.isInitialized);
+  const [isInitializing, setIsInitializing] = useState<boolean>(false);
+
+  const handleInitialize = async () => {
+    if (!primaryWallet) {
+      setError('Please connect your Dynamic wallet first');
+      return;
+    }
+    try {
+      setIsInitializing(true);
+      setError(null);
+      await adapter.initialize(primaryWallet);
+      setIsReady(true);
+    } catch (error) {
+      console.error('Failed to initialize:', error);
+      setError('Failed to initialize FastDEX: ' + (error as Error).message);
+    } finally {
+      setIsInitializing(false);
+    }
+  };
+
+  // Fetch available faucet tokens only when ready
   useEffect(() => {
+    if (!isReady) return;
+
     const fetchFaucetTokens = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        const adapter = LineraClientAdapter.getInstance();
         const result = await adapter.getFaucetTokens();
-        
+
         if (result && result.length > 0) {
           setTokens(result);
           setSelectedToken(result[0]);
@@ -48,24 +71,24 @@ export const FaucetTab = () => {
     };
 
     fetchFaucetTokens();
-  }, []);
+  }, [isReady]);
 
   // Handle cooldown timer
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    
+
     if (lastClaimTime) {
       const timePassed = Math.floor((Date.now() - lastClaimTime) / 1000);
       const timeLeft = Math.max(0, COOLDOWN_PERIOD - timePassed);
       setCooldownTimeLeft(timeLeft);
-      
+
       if (timeLeft > 0) {
         timer = setTimeout(() => {
           setCooldownTimeLeft(prev => Math.max(0, prev - 1));
         }, 1000);
       }
     }
-    
+
     return () => {
       if (timer) clearTimeout(timer);
     };
@@ -73,7 +96,7 @@ export const FaucetTab = () => {
 
   const handleClaim = async () => {
     if (!primaryWallet || !selectedToken) return;
-    
+
     // Check cooldown
     if (lastClaimTime && (Date.now() - lastClaimTime) / 1000 < COOLDOWN_PERIOD) {
       setError('Please wait for the cooldown period to finish');
@@ -83,15 +106,13 @@ export const FaucetTab = () => {
     try {
       setIsClaiming(true);
       setError(null);
-      
+
       const amount = parseFloat(claimAmount);
       if (isNaN(amount) || amount <= 0) {
         setError('Please enter a valid amount');
         return;
       }
 
-      // Call the real Linera contract to claim faucet tokens
-      const adapter = LineraClientAdapter.getInstance();
       await adapter.claimFaucetTokens(selectedToken, claimAmount);
 
       setLastClaimTime(Date.now());
@@ -115,6 +136,43 @@ export const FaucetTab = () => {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  if (!isReady) {
+    return (
+      <div style={{
+        maxWidth: '500px',
+        margin: '0 auto',
+        textAlign: 'center',
+        padding: '2rem'
+      }}>
+        <div className="cauldron-card" style={{ padding: '2rem' }}>
+          <h3 style={{ marginBottom: '1rem' }}>Connect to FastDEX Faucet</h3>
+          <p style={{ marginBottom: '1.5rem', color: 'var(--cauldron-light-gray)' }}>
+            Initialize your connection to claim test tokens
+          </p>
+          {error && (
+            <div style={{
+              marginBottom: '1rem',
+              color: '#f44336',
+              background: 'rgba(244, 67, 54, 0.1)',
+              padding: '0.5rem',
+              borderRadius: '8px'
+            }}>
+              {error}
+            </div>
+          )}
+          <button
+            className="cauldron-button"
+            onClick={handleInitialize}
+            disabled={!primaryWallet || isInitializing}
+            style={{ width: '100%' }}
+          >
+            {isInitializing ? 'Connecting...' : 'Connect to Faucet'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="cauldron-card" style={{ maxWidth: '500px', margin: '0 auto', padding: '2rem' }}>
@@ -167,11 +225,11 @@ export const FaucetTab = () => {
                   style={{
                     padding: '0.75rem',
                     borderRadius: '12px',
-                    border: selectedToken?.address === token.address 
-                      ? '2px solid var(--cauldron-button-inner)' 
+                    border: selectedToken?.address === token.address
+                      ? '2px solid var(--cauldron-button-inner)'
                       : '1px solid #333',
-                    background: selectedToken?.address === token.address 
-                      ? 'rgba(102, 126, 234, 0.15)' 
+                    background: selectedToken?.address === token.address
+                      ? 'rgba(102, 126, 234, 0.15)'
                       : 'rgba(51, 51, 51, 0.5)',
                     color: 'white',
                     fontWeight: '600',
@@ -265,8 +323,8 @@ export const FaucetTab = () => {
           )}
 
           <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-            <div style={{ 
-              fontSize: '0.85rem', 
+            <div style={{
+              fontSize: '0.85rem',
               color: 'var(--cauldron-light-gray)',
               marginBottom: '0.5rem'
             }}>

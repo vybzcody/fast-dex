@@ -56,6 +56,13 @@ export const DexInterface = () => {
       try {
         await adapter.loadConfig();
         console.log('Adapter config loaded');
+
+        // Check if already initialized (e.g. from FaucetTab)
+        if (adapter.isInitialized && primaryWallet) {
+          setIsReady(true);
+          // We can't call loadData here directly easily because it's defined below
+          // instead we'll interpret isReady change to trigger load
+        }
       } catch (error) {
         console.error('Failed to load adapter config:', error);
         setError('Failed to load Linera adapter config');
@@ -63,7 +70,14 @@ export const DexInterface = () => {
     };
 
     loadAdapterConfig();
-  }, []);
+  }, [primaryWallet]);
+
+  // Trigger loadData when isReady becomes true
+  useEffect(() => {
+    if (isReady && primaryWallet) {
+      loadData();
+    }
+  }, [isReady, primaryWallet]);
 
   const handleInitialize = async () => {
     if (!primaryWallet) {

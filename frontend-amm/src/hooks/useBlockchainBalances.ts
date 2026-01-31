@@ -19,10 +19,13 @@ export const useBlockchainBalances = () => {
       const userBalances = await adapter.getUserBalances();
       
       // Convert to simple symbol -> amount mapping
+      // Adapter now returns filtered list: { symbol, amount, token_id }
       const balanceMap: Record<string, string> = {};
       userBalances.forEach((balance: any) => {
-        if (balance.owner === primaryWallet.address) {
-          balanceMap[balance.token.symbol] = balance.amount;
+        // We can trust the adapter already filtered by owner if needed,
+        // or effectively just map the result.
+        if (balance.symbol && balance.amount) {
+            balanceMap[balance.symbol] = balance.amount;
         }
       });
       
