@@ -14,7 +14,9 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Linera / Generated files
-frontend-amm/public/config.json
+# linera-examples/
+# TASKS.md
+# frontend-amm/public/config.json (Do not ignore this, required for deployment)
 *.db
 *.json.bak
 *.log

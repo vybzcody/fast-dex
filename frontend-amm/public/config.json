@@ -1,3 +1,5 @@
 {
-  "appId": "a9c7e1214252edfae3f5054cfaa1c5124d4ebcc6398a234b1760ba7f1a481f84"
+  "appId": "9083d741ae7c9da27a4990cb18b43512fa3f26f82a969b7eefa728cb5e1f8911",
+  "network": "conway",
+  "faucetUrl": "https://faucet.testnet-conway.linera.net"
 }
