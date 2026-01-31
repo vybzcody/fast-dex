@@ -175,10 +175,14 @@ export class LineraClientAdapter {
     
     // The @linera/client app.query takes a standardized GraphQL JSON object
     // or a string depending on version. Usually handles the transport.
-    const result = await this.app.query({ 
+    // The @linera/client app.query takes a JSON string
+    // and returns a JSON string
+    const resultJson = await this.app.query(JSON.stringify({ 
       query: queryString, 
       variables 
-    });
+    }));
+
+    const result = JSON.parse(resultJson);
 
     if (result.errors) {
       throw new Error(result.errors[0].message);
