@@ -5,13 +5,13 @@ import { EthereumWalletConnectors } from '@dynamic-labs/ethereum'
 import './index.css'
 import App from './App.tsx'
 
-const environmentId = import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID || 'live_default';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <DynamicContextProvider
+      theme="auto"
       settings={{
-        environmentId,
+        environmentId: import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID || 'live_default',
         walletConnectors: [EthereumWalletConnectors],
       }}
     >
