@@ -120,22 +120,28 @@ export class LineraClientAdapter {
       const signer = new DynamicSigner(dynamicWallet);
       const faucet = new Faucet(FAUCET_URL);
       
-      // We start with a temporary wallet just to get a client up
-      // Ideally we want to persist this or derive it from the signer deterministically
+      console.log("🔗 Creating Linera Client wallet...");
       const wallet = await faucet.createWallet(); 
       
       // Try to claim a chain for the user or reuse one
       let chainId: string;
       try {
-          // Note: In a real app, you might want to identify the user's chain via their public key 
-          // or have them supply it. For now, we try to claim one from the faucet.
-          chainId = await faucet.claimChain(wallet, await signer.address());
+          console.log("🔗 Requesting chain from faucet (with timeout)...");
+          // Race faucet claim against a 15s timeout
+          const claimPromise = faucet.claimChain(wallet, await signer.address());
+          const timeoutPromise = new Promise<string>((_, reject) => 
+            setTimeout(() => reject(new Error("Faucet claim timeout")), 15000)
+          );
+          
+          chainId = await Promise.race([claimPromise, timeoutPromise]);
+          console.log("✅ Chain claimed:", chainId);
       } catch (e) {
-          // console.warn("Could not claim chain");
-          // Fallback - in real app would need user to hold a chain
-          throw e;
+          console.warn("⚠️ Could not claim chain from faucet:", e);
+          // Without a chain, we cannot interact with the application.
+          throw new Error("Failed to obtain a Linera chain. The testnet faucet might be busy/down, or the request timed out. Please try again later.");
       }
 
+      console.log("🔗 Instantiating Client...");
       const client = new Client(wallet, signer);
       
       // Get the application backend - check correct method on Client

@@ -19,6 +19,7 @@ export class DynamicSigner implements Signer {
   }
 
   async sign(owner: string, value: Uint8Array): Promise<string> {
+    console.log("✍️ DynamicSigner: signing request for", owner);
     const address: `0x${string}` = owner as `0x${string}`;
     const primaryWallet = this.dynamicWallet.address;
 

@@ -99,7 +99,7 @@ pub struct Pool {
 
 ### Prerequisites
 
-- **Linera CLI** v0.15.6 (`cargo install linera-service@0.15.6`)
+- **Linera CLI** v0.15.8+ (`cargo install linera-service@0.15.8`)
 - **Rust** v1.86.0+ with `wasm32-unknown-unknown` target
 - **Node.js** LTS (for frontend)
 - **Docker** (optional, for containerized deployment)
@@ -113,7 +113,7 @@ docker compose up --build
 # Access the frontend at http://localhost:5173
 ```
 
-### Option 2: Local Deployment
+### Option 2: Deployment to Conway Testnet (Required for Demo)
 
 ```bash
 # Add WASM target
@@ -123,14 +123,14 @@ rustup target add wasm32-unknown-unknown
 cd frontend-amm && npm install && cd ..
 
 # Run the deployment script
-./run.bash
+./deploy-to-conway.bash
 ```
 
 The script will:
-1. Start a local Linera network
-2. Build and deploy the DEX contract
-3. Generate frontend configuration
-4. Launch the web interface at `http://localhost:5173`
+1. Initialize a strictly isolated local wallet for the project
+2. Build and deploy the DEX contract to the **Linera Conway Testnet**
+3. Automatically configure the frontend with the new App ID
+4. Instructions will appear to start the frontend (`cd frontend-amm && npm run dev`)
 
 ## 🎮 Usage Example
 
@@ -257,10 +257,10 @@ FastDEX provides foundational infrastructure for real-time markets on Linera:
 
 ## 👥 Team Information
 
-**Team**: [Your Team Name]
-**Discord**: [Your Discord Username]
+**Team Name**: [FastDEX Team]
+**Discord**: [Your Discord Handle]
 **GitHub**: [Your GitHub Username]
-**Wallet Address**: [Your Linera Wallet Address]
+**Wallet Address**: [Your Linera Wallet Address - from `linera wallet show`]
 
 ## 📄 License
 
