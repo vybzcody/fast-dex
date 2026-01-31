@@ -46,6 +46,11 @@ OWNER=$(linera wallet show 2>/dev/null | grep "Default owner" | head -1 | awk '{
 echo "✅ Owner: $OWNER"
 echo ""
 
+echo "🔄 Syncing with network..."
+linera sync
+echo "✅ Synced."
+echo ""
+
 # Step 1: Publish fungible module
 echo "📦 Step 1: Publishing fungible module..."
 FUNGIBLE_MODULE_ID=$(linera publish-module \

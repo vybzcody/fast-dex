@@ -2,41 +2,45 @@
 
 Follow these steps in order to deploy FastDEX with real fungible tokens:
 
-## Step 1: Deploy DEX Contract to Conway Testnet
+## Step 1: Build Project (DEX + Tokens)
 
+Before deploying anything, ensure all modules verify and build successfully:
 ```bash
 cd /home/groot/Code/akindo/linera/fast-dex
-./deploy-to-conway.bash
+cargo build --release --target wasm32-unknown-unknown
 ```
-
 **What this does:**
-- ✅ Initializes local wallet (wallet.json, keystore.json, client.db)
-- ✅ Requests chain from Conway testnet faucet
-- ✅ Builds and deploys the DEX contract
-- ✅ Creates frontend-amm/public/config.json with DEX app ID
-
-**Expected output:**
-```
-✅ App Deployed! ID: e476187f6ddfeb9d588c7b45d3df334d5501d6499b3f9ad5595cae86cce16a65010000000000000001234567...
-```
-
-**Save this DEX App ID!**
+- ✅ Compiles DEX contract (`dex`)
+- ✅ Compiles Token contracts (`fungible`, `native-fungible`)
+- ✅ Verifies no dependency/type errors exist
 
 ---
 
-## Step 2: Deploy Fungible Tokens
+## Step 2: Deploy DEX Contract
+```bash
+./deploy-to-conway.bash
+```
+**What this does:**
+- ✅ Initializes local wallet (if missing)
+- ✅ Deploys the DEX application
+- ✅ Creates `frontend-amm/public/config.json`
+
+---
+
+## Step 3: Deploy Fungible Tokens (Sequential)
+
+To avoid network timeouts, verify each step completes:
 
 ```bash
-cd /home/groot/Code/akindo/linera/fast-dex
-./deploy-tokens.sh
-```
+# 1. Publish Fungible Module
+./deploy-step1-publish-fungible.sh
 
-**What this does:**
-- ✅ Uses the same wallet from Step 1
-- ✅ Publishes fungible and native-fungible modules
-- ✅ Creates 4 token applications: NAT, USDC, WETH, DAI
-- ✅ Saves token-config.json
-- ✅ Updates frontend-amm/.env with token app IDs
+# 2. Publish Native Module
+./deploy-step2-publish-native.sh
+
+# 3. Create Tokens (NAT, USDC, WETH, DAI)
+./deploy-step3-create-tokens.sh
+```
 
 **Expected output:**
 ```
