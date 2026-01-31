@@ -142,19 +142,12 @@ export class LineraClientAdapter {
       }
 
       console.log("🔗 Instantiating Client...");
-      const client = new Client(wallet, signer);
+      // @ts-ignore - Check if constructor returns promise at runtime
+      const client = await new Client(wallet, signer);
       
-      // Get the application backend - check correct method on Client
-      // In 0.15.x it might be different, let's look for `load` or similar or direct query
-      // Recent SDK: client.load(appId) or similar. 
-      // Based on docs search it was `client.javascript_client().application(..)`?
-      // Or simply explicit query construction if Client doesn't expose it directly.
-      // Let's assume standard way for now or check definitions.
-      // Actually @linera/client usually has `frontend()` or similar?
-      // User's previous code had manual fetch.
-      // Let's try `await (client as any).application(this.appId)` to bypass TS if needed, or fix properly.
-      // But standard is client.application
-      this.app = await (client as any).application(this.appId as string);
+      console.log("🔗 Connecting to chain:", chainId);
+      const chain = await client.chain(chainId);
+      this.app = await chain.application(this.appId as string);
       
       console.log("✅ FastDEX initialized. AppID:", this.appId, "ChainID:", chainId);
 
