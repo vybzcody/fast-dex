@@ -10,6 +10,8 @@ export LINERA_WALLET="$PWD/wallet.json"
 export LINERA_STORAGE="rocksdb:$PWD/client.db"
 export LINERA_KEYSTORE="$PWD/keystore.json"
 
+
+
 echo "🔨 Building bridge tracker and DEX contracts..."
 cargo build -p bridge-tracker --release --target wasm32-unknown-unknown
 cargo build -p dex --release --target wasm32-unknown-unknown
