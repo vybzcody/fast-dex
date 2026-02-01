@@ -49,7 +49,7 @@ echo "🌉 Deploying bridge tracker with Sepolia configuration..."
 BRIDGE_TRACKER_ID=$(linera publish-and-create \
   target/wasm32-unknown-unknown/release/bridge_tracker_{contract,service}.wasm \
   --json-argument '{
-    "ethereum_endpoint": "https://sepolia.infura.io/v3/YOUR_KEY",
+    "ethereum_endpoint": "https://sepolia.gateway.tenderly.co",
     "bridge_contract": "0x7449478525Eb5106f487d44672B40592Af2a4E49",
     "usdc_contract": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
     "start_block": 0

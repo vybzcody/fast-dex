@@ -72,10 +72,10 @@ impl QueryRoot {
             Ok(events) => {
                 events.into_iter().map(|event| {
                     bridge_tracker::DepositEvent {
-                        user: event.topics[1].clone(),
-                        token: event.topics[2].clone(), 
-                        amount: event.data.clone(),
-                        nonce: event.topics[3].parse().unwrap_or(0),
+                        user: format!("{:?}", event.values[0]),
+                        token: format!("{:?}", event.values[1]), 
+                        amount: format!("{:?}", event.values[2]),
+                        nonce: format!("{:?}", event.values[3]).parse().unwrap_or(0),
                         block_number: event.block_number,
                     }
                 }).collect()

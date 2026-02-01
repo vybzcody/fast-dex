@@ -73,7 +73,7 @@ impl BridgeTrackerContract {
         ));
 
         let application_id = self.runtime.application_id();
-        let response = self.runtime.query_service(application_id, &request);
+        let response = self.runtime.query_service(application_id, request);
 
         // Process deposit events and mint tokens
         // Implementation will read Deposit events from bridge contract
