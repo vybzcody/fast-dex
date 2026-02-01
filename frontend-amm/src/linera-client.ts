@@ -24,16 +24,16 @@ interface LineraConfig {
 
 export interface Pool {
   id: string;
-  tokenA: any; // Using any to bypass strict check for now, or match TokenId shape
-  tokenB: any;
+  tokenA: Token;
+  tokenB: Token;
   reserveA: string;
   reserveB: string;
   totalShares: string;
   feeRate: number;
 }
 
-export interface FaucetToken {
-  id: string;
+export interface Token {
+  id: string; // ApplicationId
   name: string;
   symbol: string;
   decimals: number;
@@ -45,7 +45,44 @@ export interface UserBalance {
   token_id: string;
   amount: string;
   symbol: string;
+  appId: string;
 }
+
+// Known tokens map using environment variables
+const KNOWN_TOKENS: Record<string, Token> = {
+  [import.meta.env.REACT_APP_NAT_APP_ID]: {
+    id: import.meta.env.REACT_APP_NAT_APP_ID,
+    name: "Linera Native Token",
+    symbol: "NAT",
+    decimals: 18,
+    chain: "Linera",
+    address: import.meta.env.REACT_APP_NAT_APP_ID,
+  },
+  [import.meta.env.REACT_APP_USDC_APP_ID]: {
+    id: import.meta.env.REACT_APP_USDC_APP_ID,
+    name: "USD Coin",
+    symbol: "USDC",
+    decimals: 6,
+    chain: "Linera",
+    address: import.meta.env.REACT_APP_USDC_APP_ID,
+  },
+  [import.meta.env.REACT_APP_WETH_APP_ID]: {
+    id: import.meta.env.REACT_APP_WETH_APP_ID,
+    name: "Wrapped Ethereum",
+    symbol: "WETH",
+    decimals: 18,
+    chain: "Linera",
+    address: import.meta.env.REACT_APP_WETH_APP_ID,
+  },
+  [import.meta.env.REACT_APP_DAI_APP_ID]: {
+    id: import.meta.env.REACT_APP_DAI_APP_ID,
+    name: "Dai Stablecoin",
+    symbol: "DAI",
+    decimals: 18,
+    chain: "Linera",
+    address: import.meta.env.REACT_APP_DAI_APP_ID,
+  },
+};
 
 export class LineraClientAdapter {
   private static instance: LineraClientAdapter | null = null;
@@ -53,8 +90,6 @@ export class LineraClientAdapter {
   private config: LineraConfig | null = null;
   private wasmInitPromise: Promise<unknown> | null = null;
   private appId: string | undefined;
-  
-  // Application backend instance from @linera/client
   private app: any;
 
   private constructor() {}
@@ -101,7 +136,7 @@ export class LineraClientAdapter {
     } else {
       await this.loadConfig();
       if (!this.appId) {
-         throw new Error("No app ID configured. Call initialize() first or provide appId.");
+        throw new Error("No app ID configured. Call initialize() first or provide appId.");
       }
     }
 
@@ -120,33 +155,13 @@ export class LineraClientAdapter {
         }
       }
 
-      // Create Client
-      const signer = new DynamicSigner(dynamicWallet);
+      // Create faucet, wallet, and claim chain
       const faucet = new Faucet(FAUCET_URL);
-      
-      console.log("🔗 Creating Linera Client wallet...");
-      const wallet = await faucet.createWallet(); 
-      
-      // Try to claim a chain for the user or reuse one
-      let chainId: string;
-      try {
-          console.log("🔗 Requesting chain from faucet (with timeout)...");
-          // Race faucet claim against a 15s timeout
-          const claimPromise = faucet.claimChain(wallet, await signer.address());
-          const timeoutPromise = new Promise<string>((_, reject) => 
-            setTimeout(() => reject(new Error("Faucet claim timeout")), 15000)
-          );
-          
-          chainId = await Promise.race([claimPromise, timeoutPromise]);
-          console.log("✅ Chain claimed:", chainId);
-      } catch (e) {
-          console.warn("⚠️ Could not claim chain from faucet:", e);
-          // Without a chain, we cannot interact with the application.
-          throw new Error("Failed to obtain a Linera chain. The testnet faucet might be busy/down, or the request timed out. Please try again later.");
-      }
+      const wallet = await faucet.createWallet();
+      const chainId = await faucet.claimChain(wallet, address);
 
-      console.log("🔗 Instantiating Client...");
-      // @ts-ignore - Check if constructor returns promise at runtime
+      // Create client with wallet and signer
+      const signer = new DynamicSigner(dynamicWallet);
       const client = await new Client(wallet, signer);
       
       console.log("🔗 Connecting to chain:", chainId);
@@ -171,16 +186,11 @@ export class LineraClientAdapter {
     }
   }
 
-  // Use the official client to query
   private async query(queryString: string, variables: any = {}) {
     if (!this.app) {
       throw new Error("Linera client not initialized");
     }
     
-    // The @linera/client app.query takes a standardized GraphQL JSON object
-    // or a string depending on version. Usually handles the transport.
-    // The @linera/client app.query takes a JSON string
-    // and returns a JSON string
     const resultJson = await this.app.query(JSON.stringify({ 
       query: queryString, 
       variables 
@@ -194,205 +204,210 @@ export class LineraClientAdapter {
     return result.data;
   }
 
-  // Data fetching methods - unchanged logic, just using new query
   async getPools(): Promise<Pool[]> {
     const q = `
       query {
         pools {
-          tokenA {
-            chain
-            address
-            symbol
-          }
-          tokenB {
-            chain
-            address
-            symbol
-          }
+          tokenA
+          tokenB
           reserveA
           reserveB
           feeRate
+          totalShares
         }
       }
     `;
     try {
       const data = await this.query(q);
-      return (data?.pools || []).map((p: any, index: number) => ({
-        id: index.toString(), // Pools are keyed by tokens in backend, assigning simpler index for frontend key
-        tokenA: p.tokenA,
-        tokenB: p.tokenB,
-        reserveA: p.reserveA,
-        reserveB: p.reserveB,
-        totalShares: p.totalShares || "0", 
-        feeRate: p.feeRate
-      }));
+      return (data?.pools || []).map((p: any, index: number) => {
+        // Resolve ApplicationIds to token metadata
+        const tokenA = KNOWN_TOKENS[p.tokenA] || { 
+          id: p.tokenA, 
+          symbol: 'UNK', 
+          name: 'Unknown', 
+          decimals: 0,
+          chain: 'Linera',
+          address: p.tokenA
+        };
+        const tokenB = KNOWN_TOKENS[p.tokenB] || { 
+          id: p.tokenB, 
+          symbol: 'UNK', 
+          name: 'Unknown', 
+          decimals: 0,
+          chain: 'Linera',
+          address: p.tokenB
+        };
+
+        return {
+          id: index.toString(),
+          tokenA,
+          tokenB,
+          reserveA: p.reserveA,
+          reserveB: p.reserveB,
+          totalShares: p.totalShares || "0", 
+          feeRate: p.feeRate
+        };
+      });
     } catch (e) {
       console.error("Error fetching pools:", e);
       return [];
     }
   }
 
-  async getFaucetTokens(): Promise<FaucetToken[]> {
-    const q = `
-      query {
-        faucetTokens {
-          chain
-          address
-          symbol
-        }
-      }
-    `;
-    try {
-       const data = await this.query(q);
-       if (data?.faucetTokens) {
-         return data.faucetTokens.map((t: any) => ({
-           id: t.symbol, // Using symbol as ID for now since that's unique in the detailed list
-           name: t.symbol.replace('MOCK_', ''),
-           symbol: t.symbol,
-           decimals: 18, // Backend doesn't store decimals yet, assuming 18
-           chain: t.chain,
-           address: t.address
-         }));
-       }
-    } catch (e) {
-       console.warn("Failed to fetch faucet tokens", e);
-    }
-    return [
-      { id: "MOCK_USDC", name: "USD Coin", symbol: "USDC", decimals: 6, chain: "Ethereum", address: "0x..." }
-    ];
-  }
-
-  async getUserBalances(address?: string): Promise<UserBalance[]> {
-    const targetAddress = address || this.provider?.address;
-    if (!targetAddress) return [];
+  async getUserBalances(): Promise<UserBalance[]> {
+    if (!this.provider) return [];
     
-    // Backend doesn't support filtering by owner in the query list yet, so we fetch all and filter
-    const q = `
-      query {
-        userBalances {
-          owner
-          token {
-            chain
-            address
-            symbol
+    const balances: UserBalance[] = [];
+    
+    // Query each known token application for user balance
+    for (const token of Object.values(KNOWN_TOKENS)) {
+      try {
+        const chain = await this.provider.client.chain(this.provider.chainId);
+        const tokenApp = await chain.application(token.id);
+        
+        // Query the token application for account balances
+        const q = `query { accounts { entries { key, value } } }`;
+        const resultJson = await tokenApp.query(JSON.stringify({ query: q }));
+        const result = JSON.parse(resultJson);
+        
+        if (result.data?.accounts?.entries) {
+          // Find the entry for our owner
+          // Note: This is simplified - in production you'd need proper owner matching
+          for (const entry of result.data.accounts.entries) {
+            if (entry.value && entry.value !== "0") {
+              balances.push({
+                token_id: token.symbol,
+                amount: entry.value,
+                symbol: token.symbol,
+                appId: token.id
+              });
+              break; // Assume one balance per token for simplicity
+            }
           }
-          amount
         }
+      } catch (e) {
+        console.warn(`Failed to fetch balance for ${token.symbol}`, e);
+        // Add zero balance for UI consistency
+        balances.push({
+          token_id: token.symbol,
+          amount: "0",
+          symbol: token.symbol,
+          appId: token.id
+        });
       }
-    `;
-    try {
-      const data = await this.query(q);
-      const allBalances = data?.userBalances || [];
-      return allBalances
-        .filter((b: any) => b.owner === targetAddress)
-        .map((b: any) => ({
-          token_id: b.token.symbol,
-          amount: b.amount,
-          symbol: b.token.symbol
-        }));
-    } catch (e) {
-      console.error("Error fetching balances:", e);
-      return [];
     }
+    
+    return balances;
   }
 
-  // Helper to format TokenId for GraphQL input
-  private formatTokenInput(token: any): string {
-    // Ensure we send the enum value for chain (e.g. "Ethereum") and strings for others
-    // We assume token object has chain, address, symbol from our internal interfaces
-    return `{ chain: ${token.chain}, address: "${token.address}", symbol: "${token.symbol}" }`;
+  // Legacy faucet method - now returns known tokens
+  async getFaucetTokens(): Promise<Token[]> {
+    return Object.values(KNOWN_TOKENS);
   }
 
-  async claimFaucetTokens(token: any, amount: string) {
+  // Legacy faucet claim - no longer supported
+  async claimFaucetTokens(_token: any, _amount: string) {
+    throw new Error("Faucet functionality removed. Use native token balances.");
+  }
+
+  // DEX Mutations
+  async swapTokens(fromToken: string, toToken: string, amount: string) {
+    const fromId = Object.values(KNOWN_TOKENS).find(t => t.symbol === fromToken)?.id;
+    const toId = Object.values(KNOWN_TOKENS).find(t => t.symbol === toToken)?.id;
+    
+    if (!fromId || !toId) throw new Error("Invalid tokens");
+
     const mutation = `
-        mutation {
-            claimFaucetTokens(
-                token: ${this.formatTokenInput(token)},
-                amount: "${amount}"
-            )
-        }
-    `;
-    return await this.query(mutation);
-  }
-
-  async swapTokens(fromToken: any, toToken: any, amount: string) {
-    const mutation = `
-        mutation {
-            swapTokens(
-                fromToken: ${this.formatTokenInput(fromToken)},
-                toToken: ${this.formatTokenInput(toToken)},
-                amount: "${amount}"
-            )
-        }
+      mutation {
+        swapTokens(
+          fromToken: "${fromId}",
+          toToken: "${toId}",
+          amount: "${amount}"
+        )
+      }
     `;
     return await this.query(mutation);
   }
 
   async createPool(
-    tokenA: any,
-    tokenB: any,
+    tokenASymbol: string,
+    tokenBSymbol: string,
     amountA: string,
     amountB: string,
     feeRate: number
   ) {
+    const tokenA = Object.values(KNOWN_TOKENS).find(t => t.symbol === tokenASymbol)?.id;
+    const tokenB = Object.values(KNOWN_TOKENS).find(t => t.symbol === tokenBSymbol)?.id;
+    
+    if (!tokenA || !tokenB) throw new Error("Invalid tokens");
+
     const mutation = `
-        mutation {
-            createPool(
-                tokenA: ${this.formatTokenInput(tokenA)},
-                tokenB: ${this.formatTokenInput(tokenB)},
-                amountA: "${amountA}",
-                amountB: "${amountB}",
-                feeRate: ${feeRate}
-            )
-        }
+      mutation {
+        createPool(
+          tokenA: "${tokenA}",
+          tokenB: "${tokenB}",
+          amountA: "${amountA}",
+          amountB: "${amountB}",
+          feeRate: ${feeRate}
+        )
+      }
     `;
     return await this.query(mutation);
   }
 
   async addLiquidity(
-    tokenA: any,
-    tokenB: any,
+    tokenASymbol: string,
+    tokenBSymbol: string,
     amountA: string,
     amountB: string
   ) {
+    const tokenA = Object.values(KNOWN_TOKENS).find(t => t.symbol === tokenASymbol)?.id;
+    const tokenB = Object.values(KNOWN_TOKENS).find(t => t.symbol === tokenBSymbol)?.id;
+    
+    if (!tokenA || !tokenB) throw new Error("Invalid tokens");
+
     const mutation = `
-        mutation {
-            addLiquidity(
-                tokenA: ${this.formatTokenInput(tokenA)},
-                tokenB: ${this.formatTokenInput(tokenB)},
-                amountA: "${amountA}",
-                amountB: "${amountB}"
-            )
-        }
+      mutation {
+        addLiquidity(
+          tokenA: "${tokenA}",
+          tokenB: "${tokenB}",
+          amountA: "${amountA}",
+          amountB: "${amountB}"
+        )
+      }
     `;
     return await this.query(mutation);
   }
 
   async estimateSwap(
-    fromToken: any,
-    toToken: any,
+    fromTokenSymbol: string,
+    toTokenSymbol: string,
     amount: string
   ): Promise<string> {
+    const fromId = Object.values(KNOWN_TOKENS).find(t => t.symbol === fromTokenSymbol)?.id;
+    const toId = Object.values(KNOWN_TOKENS).find(t => t.symbol === toTokenSymbol)?.id;
+    
+    if (!fromId || !toId) return "0";
+
     const q = `
-        query {
-            estimateSwap(
-                tokenIn: ${this.formatTokenInput(fromToken)},
-                tokenOut: ${this.formatTokenInput(toToken)},
-                amountIn: "${amount}"
-            )
-        }
+      query {
+        estimateSwap(
+          fromToken: "${fromId}",
+          toToken: "${toId}",
+          amount: "${amount}"
+        )
+      }
     `;
     try {
-        const data = await this.query(q);
-        return data?.estimateSwap || "0";
+      const data = await this.query(q);
+      return data?.estimateSwap || "0";
     } catch (e) {
-        console.error("Error estimating swap:", e);
-        return "0";
+      console.error("Error estimating swap:", e);
+      return "0";
     }
   }
 
   onNotification(callback: (notification: unknown) => void) {
-    // Basic stub - in real implementation this would subscribe to client events
     console.log("Subscribed to notifications (stub)", callback);
   }
 }

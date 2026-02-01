@@ -3,11 +3,11 @@
 use std::sync::Arc;
 
 use async_graphql::{EmptySubscription, Object, Schema};
-use dex::{DexAbi, DexOperation, DexState, Pool, UserBalance, TokenId, ChainType};
+use dex::{DexAbi, DexOperation, DexState, Pool, TokenId};
 use linera_sdk::{
     abi::WithServiceAbi,
     graphql::GraphQLMutationRoot,
-    linera_base_types::{AccountOwner, Amount},
+    linera_base_types::Amount,
     Service, ServiceRuntime,
 };
 
@@ -57,16 +57,6 @@ impl QueryRoot {
         self.state.pools.values().cloned().collect()
     }
 
-    async fn user_balances(&self) -> Vec<UserBalance> {
-        self.state.user_balances.iter()
-            .map(|((owner, token), amount)| UserBalance {
-                owner: *owner,
-                token: token.clone(),
-                amount: *amount,
-            })
-            .collect()
-    }
-
     async fn pool_by_tokens(&self, token_a: TokenId, token_b: TokenId) -> Option<Pool> {
         let pool_key = if token_a < token_b {
             (token_a, token_b)
@@ -76,15 +66,11 @@ impl QueryRoot {
         self.state.pools.get(&pool_key).cloned()
     }
 
-    async fn user_balance(&self, owner: AccountOwner, token: TokenId) -> Amount {
-        self.state.user_balances.get(&(owner, token)).copied().unwrap_or(Amount::ZERO)
-    }
-
     async fn estimate_swap(&self, from_token: TokenId, to_token: TokenId, amount: Amount) -> Option<Amount> {
         let pool_key = if from_token < to_token {
-            (from_token.clone(), to_token.clone())
+            (from_token, to_token)
         } else {
-            (to_token.clone(), from_token.clone())
+            (to_token, from_token)
         };
 
         let pool = self.state.pools.get(&pool_key)?;
@@ -116,26 +102,5 @@ impl QueryRoot {
         let numerator = output_reserve_u128.saturating_mul(amount_after_fee);
         let received_u128 = numerator.saturating_div(denominator);
         Some(Amount::from_tokens(received_u128))
-    }
-
-    async fn faucet_tokens(&self) -> Vec<TokenId> {
-        // Return configured faucet tokens for demo purposes
-        vec![
-            TokenId {
-                chain: ChainType::Ethereum,
-                address: "mock_usdc".to_string(),
-                symbol: "MOCK_USDC".to_string(),
-            },
-            TokenId {
-                chain: ChainType::Polygon,
-                address: "mock_eth".to_string(),
-                symbol: "MOCK_ETH".to_string(),
-            },
-            TokenId {
-                chain: ChainType::Base,
-                address: "mock_btc".to_string(),
-                symbol: "MOCK_BTC".to_string(),
-            },
-        ]
     }
 }

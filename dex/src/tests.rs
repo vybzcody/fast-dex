@@ -1,25 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::{TokenId, ChainType};
     use linera_sdk::linera_base_types::Amount;
-
-    fn create_test_token(chain: ChainType, address: &str, symbol: &str) -> TokenId {
-        TokenId {
-            chain,
-            address: address.to_string(),
-            symbol: symbol.to_string(),
-        }
-    }
-
-    #[test]
-    fn test_token_id_comparison() {
-        let token_a = create_test_token(ChainType::Ethereum, "0x1", "ETH");
-        let token_b = create_test_token(ChainType::Polygon, "0x2", "USDC");
-
-        // Verify ordering logic for pool keys
-        assert_ne!(token_a, token_b);
-        // Since the ordering depends on the enum and field values, we just verify they can be compared
-    }
 
     #[test]
     fn test_cpmm_formula() {
