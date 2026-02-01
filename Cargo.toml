@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["abi", "dex", "fungible", "native-fungible"]
+members = ["abi", "dex", "bridge-tracker"]
 
 [workspace.dependencies]
 async-graphql = { version = "=7.0.17", default-features = false }
@@ -17,5 +17,5 @@ test-log = { version = "0.2.15", default-features = false, features = ["trace"] 
 
 # Internal Dependencies
 abi = { path = "./abi" }
-fungible = { path = "./fungible" }
+bridge-tracker = { path = "./bridge-tracker" }
 native-fungible = { path = "./native-fungible" }

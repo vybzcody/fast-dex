@@ -1,0 +1,19 @@
+[package]
+name = "bridge-tracker"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+async-graphql.workspace = true
+linera-sdk = { workspace = true, features = ["ethereum"] }
+serde.workspace = true
+thiserror = "2.0.3"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+linera-sdk = { version = "0.15.8", features = ["test", "wasmer"] }
+
+[dev-dependencies]
+linera-sdk = { version = "0.15.8", features = ["test"] }
