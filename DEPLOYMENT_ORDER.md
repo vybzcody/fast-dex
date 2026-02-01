@@ -2,14 +2,20 @@
 
 ## Complete Deployment Sequence
 
-### 1. EVM Contracts (First)
-```bash
-cd solidity-contracts
-npm install
-npm run deploy:sepolia
-npm run deploy:arbitrum-sepolia
-```
-**Output**: Bridge contract addresses for each network
+### 1. EVM Contracts (First) - Using Remix
+1. Open [Remix IDE](https://remix.ethereum.org)
+2. Upload `solidity-contracts/contracts/FastDEXBridge.sol`
+3. Compile with Solidity 0.8.19+
+4. Deploy to **Sepolia Testnet**:
+   - Connect MetaMask to Sepolia
+   - Deploy with constructor: `_usdc = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238`
+   - Copy deployed contract address
+5. Deploy to **Arbitrum Sepolia**:
+   - Switch MetaMask to Arbitrum Sepolia
+   - Deploy with constructor: `_usdc = 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d`
+   - Copy deployed contract address
+
+**Output**: Two bridge contract addresses
 
 ### 2. Linera Bridge Tracker
 ```bash
@@ -46,7 +52,9 @@ DEX_ID=$(linera publish-and-create \
 
 ## Automated Deployment
 ```bash
-# Deploy everything in correct order
+# 1. Deploy EVM contracts via Remix first
+# 2. Update bridge addresses in deploy script
+# 3. Run automated Linera deployment
 ./deploy-bridge-dex.bash
 ```
 
