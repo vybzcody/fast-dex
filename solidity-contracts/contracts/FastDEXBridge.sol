@@ -25,7 +25,7 @@ contract FastDEXBridge is ReentrancyGuard, Ownable {
     mapping(uint256 => bool) public processedWithdrawals;
     uint256 public depositNonce;
     
-    constructor(address _usdc) {
+    constructor(address _usdc) Ownable(msg.sender) {
         usdc = IERC20(_usdc);
     }
     
