@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-async-graphql = { version = "=7.0.17", default-features = false }
-async-graphql-derive = { version = "=7.0.17", default-features = false }
-linera-sdk = { version = "0.15.7", default-features = false }
+async-graphql.workspace = true
+async-graphql-derive.workspace = true
+linera-sdk = { workspace = true }
 serde = { version = "1.0.215", features = ["derive"] }
 thiserror = "2.0.3"
 hex = "0.4"

@@ -14,7 +14,7 @@ export LINERA_STORAGE="rocksdb:$PWD/client.db"
 export LINERA_KEYSTORE="$PWD/keystore.json"
 
 # Configuration
-WASM_DIR="/home/groot/Code/akindo/linera/linera-protocol/examples/target/wasm32-unknown-unknown/release"
+WASM_DIR="./target/wasm32-unknown-unknown/release"
 OUTPUT_FILE="./token-config.json"
 
 # Check if linera CLI is available
@@ -72,7 +72,7 @@ echo ""
 # Step 3: Create NAT token (native token wrapper)
 echo "🪙 Step 3: Creating NAT token (Native Token Wrapper)..."
 NAT_APP_ID=$(linera create-application "$NATIVE_MODULE_ID" \
-    --json-argument "{ \"accounts\": { \"$OWNER\": \"10000.\" } }" \
+    --json-argument "{ \"accounts\": { \"$OWNER\": \"20.\" } }" \
     --json-parameters '{ "ticker_symbol": "NAT" }')
 
 echo "✅ NAT App ID: $NAT_APP_ID"
@@ -107,42 +107,24 @@ echo ""
 
 # Step 7: Save configuration
 echo "💾 Step 7: Saving configuration..."
+
+# Get current chain ID for verification - extract only the first 64 hex characters
+CURRENT_CHAIN_ID=$(linera wallet show 2>/dev/null | grep 'Chain ID:' | awk '{print $3}' | head -c 64)
+
 cat > "$OUTPUT_FILE" <<EOF
 {
+  "chain_id": "$CURRENT_CHAIN_ID",
+  "owner": "$OWNER",
   "modules": {
     "fungible": "$FUNGIBLE_MODULE_ID",
     "native_fungible": "$NATIVE_MODULE_ID"
   },
-  "base_token": {
-    "app_id": "$NAT_APP_ID",
-    "symbol": "NAT",
-    "name": "Linera Native Token",
-    "decimals": 18,
-    "initial_supply": "10000"
-  },
-  "tokens": [
-    {
-      "app_id": "$USDC_APP_ID",
-      "symbol": "USDC",
-      "name": "USD Coin",
-      "decimals": 6,
-      "initial_supply": "1000000"
-    },
-    {
-      "app_id": "$WETH_APP_ID",
-      "symbol": "WETH",
-      "name": "Wrapped Ethereum",
-      "decimals": 18,
-      "initial_supply": "1000"
-    },
-    {
-      "app_id": "$DAI_APP_ID",
-      "symbol": "DAI",
-      "name": "Dai Stablecoin",
-      "decimals": 18,
-      "initial_supply": "500000"
-    }
-  ]
+  "tokens": {
+    "NAT": "$NAT_APP_ID",
+    "USDC": "$USDC_APP_ID",
+    "WETH": "$WETH_APP_ID",
+    "DAI": "$DAI_APP_ID"
+  }
 }
 EOF
 
