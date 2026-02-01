@@ -170,9 +170,16 @@ query {
 }
 ```
 
-## 🔧 Linera SDK Features Used
+## Bridge Integration
 
-### Core Features
+FastDEX integrates with Ethereum via a bridge contract deployed on Sepolia testnet:
+
+**Bridge Contract**: `0x7449478525Eb5106f487d44672B40592Af2a4E49`
+**USDC Contract**: `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238`
+
+Users can deposit USDC on Ethereum Sepolia, which gets bridged to Linera as wUSDC for trading on FastDEX.
+
+## 🔧 Linera SDK Features Used
 - **Smart Contracts**: WASM contract compilation and deployment
 - **GraphQL API**: Service layer with async-graphql integration
 - **State Management**: Persistent state across microchains

@@ -45,12 +45,12 @@ fi
 echo "🔄 Syncing with network..."
 linera sync
 
-echo "🌉 Deploying bridge tracker first..."
+echo "🌉 Deploying bridge tracker with Sepolia configuration..."
 BRIDGE_TRACKER_ID=$(linera publish-and-create \
   target/wasm32-unknown-unknown/release/bridge_tracker_{contract,service}.wasm \
   --json-argument '{
     "ethereum_endpoint": "https://sepolia.infura.io/v3/YOUR_KEY",
-    "bridge_contract": "0x0000000000000000000000000000000000000000",
+    "bridge_contract": "0x7449478525Eb5106f487d44672B40592Af2a4E49",
     "usdc_contract": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
     "start_block": 0
   }')
@@ -75,8 +75,7 @@ cat > frontend-amm/public/config.json <<EOF
   "network": "conway",
   "faucetUrl": "https://faucet.testnet-conway.linera.net",
   "bridgeContracts": {
-    "sepolia": "0x0000000000000000000000000000000000000000",
-    "arbitrumSepolia": "0x0000000000000000000000000000000000000000"
+    "sepolia": "0x7449478525Eb5106f487d44672B40592Af2a4E49"
   }
 }
 EOF

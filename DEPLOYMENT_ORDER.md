@@ -8,23 +8,17 @@
 3. Compile with Solidity 0.8.19+
 4. Deploy to **Sepolia Testnet**:
    - Connect MetaMask to Sepolia
-   - Deploy with constructor: `_usdc = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238`
-   - Copy deployed contract address
-5. Deploy to **Arbitrum Sepolia**:
-   - Switch MetaMask to Arbitrum Sepolia
-   - Deploy with constructor: `_usdc = 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d`
-   - Copy deployed contract address
-
-**Output**: Two bridge contract addresses
+   - Deploy with constructor: `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238`
+   - **Deployed at**: `0x7449478525Eb5106f487d44672B40592Af2a4E49`
 
 ### 2. Linera Bridge Tracker
 ```bash
-# Update bridge contract addresses in deploy script
+# Update with deployed Sepolia bridge address
 BRIDGE_TRACKER_ID=$(linera publish-and-create \
   target/wasm32-unknown-unknown/release/bridge_tracker_{contract,service}.wasm \
   --json-argument '{
     "ethereum_endpoint": "https://sepolia.infura.io/v3/YOUR_KEY",
-    "bridge_contract": "0x[SEPOLIA_BRIDGE_ADDRESS]",
+    "bridge_contract": "0x7449478525Eb5106f487d44672B40592Af2a4E49",
     "usdc_contract": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
     "start_block": [DEPLOYMENT_BLOCK]
   }')
@@ -44,8 +38,7 @@ DEX_ID=$(linera publish-and-create \
   "dexAppId": "$DEX_ID",
   "bridgeTrackerAppId": "$BRIDGE_TRACKER_ID",
   "bridgeContracts": {
-    "sepolia": "0x[SEPOLIA_BRIDGE_ADDRESS]",
-    "arbitrumSepolia": "0x[ARBITRUM_SEPOLIA_BRIDGE_ADDRESS]"
+    "sepolia": "0x7449478525Eb5106f487d44672B40592Af2a4E49"
   }
 }
 ```
