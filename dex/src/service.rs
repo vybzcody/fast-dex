@@ -2,8 +2,8 @@
 
 use std::sync::Arc;
 
-use async_graphql::{EmptySubscription, Object, Schema};
-use dex::{DexAbi, DexOperation, DexState, Pool, TokenId};
+use async_graphql::{EmptySubscription, Object, Schema, SimpleObject};
+use dex::{BridgeToken, DexAbi, DexOperation, DexState, Pool};
 use linera_sdk::{
     abi::WithServiceAbi,
     graphql::GraphQLMutationRoot,
@@ -47,6 +47,12 @@ impl Service for DexService {
     }
 }
 
+#[derive(SimpleObject)]
+struct UserBalance {
+    token: BridgeToken,
+    amount: Amount,
+}
+
 struct QueryRoot {
     state: Arc<DexState>,
 }
@@ -57,22 +63,31 @@ impl QueryRoot {
         self.state.pools.values().cloned().collect()
     }
 
-    async fn pool_by_tokens(&self, token_a: TokenId, token_b: TokenId) -> Option<Pool> {
-        let pool_key = if token_a < token_b {
-            (token_a, token_b)
-        } else {
-            (token_b, token_a)
-        };
+    async fn pool_by_tokens(&self, token_a: BridgeToken, token_b: BridgeToken) -> Option<Pool> {
+        let pool_key = (token_a, token_b);
         self.state.pools.get(&pool_key).cloned()
     }
 
-    async fn estimate_swap(&self, from_token: TokenId, to_token: TokenId, amount: Amount) -> Option<Amount> {
-        let pool_key = if from_token < to_token {
-            (from_token, to_token)
-        } else {
-            (to_token, from_token)
-        };
+    async fn user_balance(&self, user: String, token: BridgeToken) -> Amount {
+        self.state.user_balances
+            .get(&(user, token))
+            .copied()
+            .unwrap_or_default()
+    }
 
+    async fn user_balances(&self, user: String) -> Vec<UserBalance> {
+        self.state.user_balances
+            .iter()
+            .filter(|((u, _), _)| u == &user)
+            .map(|((_, token), amount)| UserBalance {
+                token: token.clone(),
+                amount: *amount,
+            })
+            .collect()
+    }
+
+    async fn estimate_swap(&self, from_token: BridgeToken, to_token: BridgeToken, amount: Amount) -> Option<Amount> {
+        let pool_key = (from_token.clone(), to_token.clone());
         let pool = self.state.pools.get(&pool_key)?;
 
         let (input_reserve, output_reserve) =
@@ -86,21 +101,12 @@ impl QueryRoot {
             return None;
         }
 
-        let fee_rate = pool.fee_rate as u128;
-        let amount_with_fee = Into::<u128>::into(amount) as u128;
-        let fee_amount = amount_with_fee.saturating_mul(fee_rate).saturating_div(10_000);
-        let amount_after_fee = amount_with_fee.saturating_sub(fee_amount);
-
-        let input_reserve_u128 = Into::<u128>::into(input_reserve) as u128;
-        let output_reserve_u128 = Into::<u128>::into(output_reserve) as u128;
-
-        let denominator = input_reserve_u128.saturating_add(amount_after_fee);
-        if denominator == 0 {
-            return None;
-        }
-
-        let numerator = output_reserve_u128.saturating_mul(amount_after_fee);
-        let received_u128 = numerator.saturating_div(denominator);
-        Some(Amount::from_tokens(received_u128))
+        // Simple CPMM: output = (output_reserve * amount) / (input_reserve + amount)
+        let input_u128 = input_reserve.to_attos();
+        let output_u128 = output_reserve.to_attos();
+        let amount_u128 = amount.to_attos();
+        
+        let output_amount_u128 = (output_u128 * amount_u128) / (input_u128 + amount_u128);
+        Some(Amount::from_attos(output_amount_u128))
     }
 }

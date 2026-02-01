@@ -1,8 +1,7 @@
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-use dex::{DexAbi, DexOperation, DexResponse, DexState, Pool, TokenId};
+use dex::{BridgeToken, DexAbi, DexInstantiationArgument, DexOperation, DexResponse, DexState, Pool};
 use linera_sdk::{
-    abis::fungible::{Account as FungibleAccount, FungibleOperation, FungibleTokenAbi},
     linera_base_types::{AccountOwner, Amount},
     Contract, ContractRuntime,
 };
@@ -24,7 +23,7 @@ pub enum DexError {
     InvalidCalculation,
     #[error("Pool has no shares")]
     NoPoolShares,
-    #[error("Invalid pool state - input reserve is zero")]
+    #[error("Zero reserve")]
     ZeroReserve,
     #[error("Insufficient output reserve")]
     InsufficientOutputReserve,
@@ -43,7 +42,7 @@ impl linera_sdk::abi::WithContractAbi for DexContract {
 
 impl Contract for DexContract {
     type Message = ();
-    type InstantiationArgument = ();
+    type InstantiationArgument = DexInstantiationArgument;
     type Parameters = ();
     type EventValue = ();
     
@@ -54,7 +53,9 @@ impl Contract for DexContract {
         }
     }
 
-    async fn instantiate(&mut self, _argument: Self::InstantiationArgument) {}
+    async fn instantiate(&mut self, argument: Self::InstantiationArgument) {
+        self.state.bridge_tracker_app = argument.bridge_tracker_app;
+    }
 
     async fn execute_operation(&mut self, operation: DexOperation) -> DexResponse {
         match operation {
@@ -70,6 +71,12 @@ impl Contract for DexContract {
             DexOperation::RemoveLiquidity { token_a, token_b, share_amount } => {
                 self.remove_liquidity(token_a, token_b, share_amount).await
             },
+            DexOperation::MintBridgeToken { token, user, amount } => {
+                self.mint_bridge_token(token, user, amount).await
+            },
+            DexOperation::BurnBridgeToken { token, user, amount } => {
+                self.burn_bridge_token(token, user, amount).await
+            },
         }
     }
 
@@ -79,52 +86,70 @@ impl Contract for DexContract {
 }
 
 impl DexContract {
-    /// Helper to transfer tokens from DEX to a user
-    async fn send_to_user(&mut self, token: TokenId, to: AccountOwner, amount: Amount) {
-        let call = FungibleOperation::Transfer {
-            owner: AccountOwner::from(self.runtime.application_id().forget_abi()),
-            amount,
-            target_account: FungibleAccount {
-                chain_id: self.runtime.chain_id(),
-                owner: to,
-            },
-        };
-        
-        let token_with_abi = token.with_abi::<FungibleTokenAbi>();
-        self.runtime.call_application(true, token_with_abi, &call);
+    fn get_user(&mut self) -> String {
+        self.runtime.authenticated_signer().unwrap().to_string()
+    }
+
+    fn get_user_balance(&self, user: &str, token: &BridgeToken) -> Amount {
+        self.state.user_balances
+            .get(&(user.to_string(), token.clone()))
+            .copied()
+            .unwrap_or_default()
+    }
+
+    fn set_user_balance(&mut self, user: &str, token: &BridgeToken, amount: Amount) {
+        self.state.user_balances.insert((user.to_string(), token.clone()), amount);
+    }
+
+    async fn mint_bridge_token(&mut self, token: BridgeToken, user: String, amount: Amount) -> DexResponse {
+        let current_balance = self.get_user_balance(&user, &token);
+        let new_balance = Amount::from_attos(current_balance.to_attos() + amount.to_attos());
+        self.set_user_balance(&user, &token, new_balance);
+        DexResponse::Ok
+    }
+
+    async fn burn_bridge_token(&mut self, token: BridgeToken, user: String, amount: Amount) -> DexResponse {
+        let current_balance = self.get_user_balance(&user, &token);
+        if current_balance.to_attos() < amount.to_attos() {
+            return DexResponse::Error("Insufficient balance".to_string());
+        }
+        let new_balance = Amount::from_attos(current_balance.to_attos() - amount.to_attos());
+        self.set_user_balance(&user, &token, new_balance);
+        DexResponse::Ok
     }
 
     async fn create_pool(
         &mut self, 
-        token_a: TokenId, 
-        token_b: TokenId, 
+        token_a: BridgeToken, 
+        token_b: BridgeToken, 
         amount_a: Amount, 
-        amount_b: Amount, 
-        fee_rate: u32
+        amount_b: Amount,
+        fee_rate: u32,
     ) -> DexResponse {
-        if amount_a == Amount::ZERO || amount_b == Amount::ZERO {
-            return DexResponse::Error("Amounts must be greater than zero".to_string());
-        }
-        if token_a == token_b {
-            return DexResponse::Error("Cannot create pool with identical tokens".to_string());
-        }
-
-        let pool_key = if token_a < token_b {
-            (token_a, token_b)
-        } else {
-            (token_b, token_a)
-        };
-
+        let pool_key = (token_a.clone(), token_b.clone());
+        
         if self.state.pools.contains_key(&pool_key) {
             return DexResponse::Error("Pool already exists".to_string());
         }
 
-        // We assume tokens have been transferred to the DEX account
-        // No explicit check here as per standard AMM pattern on Linera
+        let user = self.get_user();
         
+        // Check user has enough tokens
+        if self.get_user_balance(&user, &token_a).to_attos() < amount_a.to_attos() ||
+           self.get_user_balance(&user, &token_b).to_attos() < amount_b.to_attos() {
+            return DexResponse::Error("Insufficient balance".to_string());
+        }
+
+        // Deduct tokens from user
+        let balance_a = self.get_user_balance(&user, &token_a);
+        let balance_b = self.get_user_balance(&user, &token_b);
+        self.set_user_balance(&user, &token_a, Amount::from_attos(balance_a.to_attos() - amount_a.to_attos()));
+        self.set_user_balance(&user, &token_b, Amount::from_attos(balance_b.to_attos() - amount_b.to_attos()));
+
+        // Create pool
         let pool = Pool {
-            token_a,
-            token_b,
+            token_a: token_a.clone(),
+            token_b: token_b.clone(),
             reserve_a: amount_a,
             reserve_b: amount_b,
             total_shares: amount_a, // Initial shares = amount_a
@@ -132,182 +157,79 @@ impl DexContract {
         };
 
         self.state.pools.insert(pool_key, pool);
-        
-        // Mint initial shares to creator? 
-        // For simplicity in this step, we just track total shares. 
-        // Implement LP token logic if needed later.
-        
         DexResponse::PoolCreated { success: true }
     }
 
-    async fn add_liquidity(
-        &mut self, 
-        token_a: TokenId, 
-        token_b: TokenId, 
-        amount_a: Amount, 
-        amount_b: Amount
+    async fn swap_tokens(
+        &mut self,
+        from_token: BridgeToken,
+        to_token: BridgeToken,
+        amount: Amount,
     ) -> DexResponse {
-        let pool_key = if token_a < token_b {
-            (token_a, token_b)
-        } else {
-            (token_b, token_a)
-        };
+        let user = self.get_user();
+        
+        // Check user has enough tokens
+        if self.get_user_balance(&user, &from_token).to_attos() < amount.to_attos() {
+            return DexResponse::Error("Insufficient balance".to_string());
+        }
 
+        let pool_key = (from_token.clone(), to_token.clone());
         let pool = match self.state.pools.get_mut(&pool_key) {
             Some(pool) => pool,
-            None => return DexResponse::Error("Pool does not exist".to_string()),
+            None => return DexResponse::Error("Pool not found".to_string()),
         };
 
-        // Assume tokens received.
-        // Calculate shares
-        let shares_to_mint = if pool.total_shares == Amount::ZERO {
-            amount_a
+        // Calculate output using CPMM formula: dy = (y * dx) / (x + dx)
+        let (input_reserve, output_reserve) = if from_token == pool.token_a {
+            (pool.reserve_a, pool.reserve_b)
         } else {
-            let total_shares = u128::from(pool.total_shares);
-            let reserve_a = u128::from(pool.reserve_a);
-            let amount_a_val = u128::from(amount_a);
-            Amount::from_tokens(total_shares.saturating_mul(amount_a_val).saturating_div(reserve_a))
+            (pool.reserve_b, pool.reserve_a)
         };
 
-        pool.reserve_a = pool.reserve_a.saturating_add(amount_a);
-        pool.reserve_b = pool.reserve_b.saturating_add(amount_b);
-        pool.total_shares = pool.total_shares.saturating_add(shares_to_mint);
+        let input_u128 = input_reserve.to_attos();
+        let output_u128 = output_reserve.to_attos();
+        let amount_u128 = amount.to_attos();
+        
+        let output_amount_u128 = (output_u128 * amount_u128) / (input_u128 + amount_u128);
+        
+        if output_amount_u128 >= output_u128 {
+            return DexResponse::Error("Insufficient pool reserves".to_string());
+        }
 
-        DexResponse::LiquidityAdded { shares_minted: shares_to_mint }
+        // Update pool reserves
+        if from_token == pool.token_a {
+            pool.reserve_a = Amount::from_attos(pool.reserve_a.to_attos() + amount_u128);
+            pool.reserve_b = Amount::from_attos(pool.reserve_b.to_attos() - output_amount_u128);
+        } else {
+            pool.reserve_b = Amount::from_attos(pool.reserve_b.to_attos() + amount_u128);
+            pool.reserve_a = Amount::from_attos(pool.reserve_a.to_attos() - output_amount_u128);
+        }
+
+        // Update user balances
+        let from_balance = self.get_user_balance(&user, &from_token);
+        let to_balance = self.get_user_balance(&user, &to_token);
+        self.set_user_balance(&user, &from_token, Amount::from_attos(from_balance.to_attos() - amount_u128));
+        self.set_user_balance(&user, &to_token, Amount::from_attos(to_balance.to_attos() + output_amount_u128));
+
+        DexResponse::SwapResult { received: Amount::from_attos(output_amount_u128) }
+    }
+
+    async fn add_liquidity(
+        &mut self,
+        token_a: BridgeToken,
+        token_b: BridgeToken,
+        amount_a: Amount,
+        amount_b: Amount,
+    ) -> DexResponse {
+        DexResponse::Error("Not implemented".to_string())
     }
 
     async fn remove_liquidity(
-        &mut self, 
-        token_a: TokenId, 
-        token_b: TokenId, 
-        share_amount: Amount
+        &mut self,
+        token_a: BridgeToken,
+        token_b: BridgeToken,
+        share_amount: Amount,
     ) -> DexResponse {
-        let (amount_a, amount_b, pool_token_a, pool_token_b) = {
-            let pool_key = if token_a < token_b {
-                (token_a, token_b)
-            } else {
-                (token_b, token_a)
-            };
-
-            let pool = match self.state.pools.get_mut(&pool_key) {
-                Some(pool) => pool,
-                None => return DexResponse::Error("Pool does not exist".to_string()),
-            };
-
-            let total_shares = u128::from(pool.total_shares);
-            let share_val = u128::from(share_amount);
-
-            if total_shares == 0 || share_val > total_shares {
-                return DexResponse::Error("Invalid share amount".to_string());
-            }
-
-            let reserve_a = u128::from(pool.reserve_a);
-            let reserve_b = u128::from(pool.reserve_b);
-
-            let amount_a = Amount::from_tokens(reserve_a.saturating_mul(share_val).saturating_div(total_shares));
-            let amount_b = Amount::from_tokens(reserve_b.saturating_mul(share_val).saturating_div(total_shares));
-
-            pool.reserve_a = pool.reserve_a.saturating_sub(amount_a);
-            pool.reserve_b = pool.reserve_b.saturating_sub(amount_b);
-            pool.total_shares = pool.total_shares.saturating_sub(share_amount);
-
-            (amount_a, amount_b, pool.token_a, pool.token_b)
-        }; // End mutable borrow of self.state.pools
-
-        let owner = self.runtime.authenticated_signer().unwrap();
-        
-        // Transfer tokens back to user
-        self.send_to_user(pool_token_a, owner, amount_a).await;
-        self.send_to_user(pool_token_b, owner, amount_b).await;
-
-        DexResponse::LiquidityRemoved { amount_a, amount_b }
-    }
-
-    async fn swap_tokens(
-        &mut self, 
-        from_token: TokenId, 
-        to_token: TokenId, 
-        amount: Amount
-    ) -> DexResponse {
-        let (output_amount, target_token) = {
-            let pool_key = if from_token < to_token {
-                (from_token, to_token)
-            } else {
-                (to_token, from_token)
-            };
-
-            let pool = match self.state.pools.get_mut(&pool_key) {
-                Some(pool) => pool,
-                None => return DexResponse::Error("Pool does not exist".to_string()),
-            };
-
-            let (input_reserve, output_reserve, is_a_to_b) = if pool.token_a == from_token {
-                (pool.reserve_a, pool.reserve_b, true)
-            } else {
-                (pool.reserve_b, pool.reserve_a, false)
-            };
-
-            // Fee calculation (0.3% = 30 bps)
-            let amount_u128 = u128::from(amount);
-            let fee = amount_u128.saturating_mul(u128::from(pool.fee_rate)).saturating_div(10000);
-            let amount_less_fee = amount_u128.saturating_sub(fee);
-
-            let input_reserve_u128 = u128::from(input_reserve);
-            let output_reserve_u128 = u128::from(output_reserve);
-
-            // CPMM Formula
-            let numerator = output_reserve_u128.saturating_mul(amount_less_fee);
-            let denominator = input_reserve_u128.saturating_add(amount_less_fee);
-            
-            if denominator == 0 {
-                 return DexResponse::Error("Invalid calculation".to_string());
-            }
-
-            let output_amount = Amount::from_tokens(numerator.saturating_div(denominator));
-
-            if output_amount == Amount::ZERO {
-                return DexResponse::Error("Swap too small".to_string());
-            }
-
-            // Update reserves
-            if is_a_to_b {
-                pool.reserve_a = pool.reserve_a.saturating_add(amount); 
-                pool.reserve_b = pool.reserve_b.saturating_sub(output_amount);
-            } else {
-                pool.reserve_b = pool.reserve_b.saturating_add(amount);
-                pool.reserve_a = pool.reserve_a.saturating_sub(output_amount);
-            }
-
-            // Return values for independent side-effect
-            // The target token is the one we are NOT sending (wait, we ARE sending output)
-            // If is_a_to_b (sending A, getting B), we send B to user.
-            let target_token = if is_a_to_b { pool.token_b } else { pool.token_a };
-            
-            (output_amount, target_token)
-        }; // End mutable borrow of self.state.pools
-
-        // Transfer output to user
-        let owner = self.runtime.authenticated_signer().unwrap();
-        self.send_to_user(target_token, owner, output_amount).await;
-
-        DexResponse::SwapResult { received: output_amount }
-    }
-}
-
-#[cfg(test)]
-mod contract_tests {
-    use super::*;
-
-    #[test]
-    fn test_amount_validations_in_swaps() {
-        // This is a unit test to validate the logic in the contract
-        // Since we can't easily test the entire contract in unit tests,
-        // we can test the core calculation logic
-
-        let amount = Amount::ZERO;
-        assert_eq!(amount, Amount::ZERO);
-
-        let positive_amount = Amount::from(100u128);
-        assert!(positive_amount > Amount::ZERO);
+        DexResponse::Error("Not implemented".to_string())
     }
 }
