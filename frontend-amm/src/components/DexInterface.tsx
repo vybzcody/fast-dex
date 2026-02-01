@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowDownUp, Wallet, Droplets, Zap } from 'lucide-react';
+import { ArrowDownUp, Wallet, Droplets } from 'lucide-react';
 import { useDynamicContext, useIsLoggedIn } from '@dynamic-labs/sdk-react-core';
 import { SwapTab } from './SwapTab';
 import { PoolsTab } from './PoolsTab';
-import { TokensTab } from './TokensTab';
 import { LineraClientAdapter } from '../linera-client';
 import { useBlockchainBalances } from '../hooks/useBlockchainBalances';
 
@@ -36,7 +35,7 @@ export const DexInterface = () => {
   const isLoggedIn = useIsLoggedIn();
   const { balances, loading: balancesLoading, refreshBalances } = useBlockchainBalances();
 
-  const [activeTab, setActiveTab] = useState<'swap' | 'pools' | 'tokens'>('swap');
+  const [activeTab, setActiveTab] = useState<'swap' | 'pools'>('swap');
   const [pools, setPools] = useState<Pool[]>([]);
   const [tokens, setTokens] = useState<TradingToken[]>([]);
   const [loading, setLoading] = useState(false);
@@ -323,8 +322,7 @@ export const DexInterface = () => {
           <div style={{ display: 'flex', gap: '4px' }}>
             {[
               { key: 'swap', label: 'Swap', icon: ArrowDownUp },
-              { key: 'pools', label: 'Pools', icon: Droplets },
-              { key: 'tokens', label: 'Tokens', icon: Zap }
+              { key: 'pools', label: 'Pools', icon: Droplets }
             ].map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
@@ -385,13 +383,6 @@ export const DexInterface = () => {
               </div>
             )}
 
-            {activeTab === 'tokens' && (
-              <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-                <TokensTab
-                  tokens={tokens}
-                />
-              </div>
-            )}
           </motion.div>
         </div>
       )}

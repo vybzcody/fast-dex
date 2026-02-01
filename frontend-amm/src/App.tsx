@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom'
-import { Wallet, ArrowDownUp, ExternalLink, Droplets, Zap, Activity, Globe } from 'lucide-react'
+import { Wallet, ArrowDownUp, Activity, Zap } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useDynamicContext, useIsLoggedIn } from '@dynamic-labs/sdk-react-core'
 import { DexInterface } from './components/DexInterface'
-import { FaucetTab } from './components/FaucetTab'
 import { WalletSidebar } from './components/WalletSidebar'
 import './App.css'
 
@@ -12,68 +11,10 @@ const AppContent = () => {
   return (
     <Routes>
       <Route path="/" element={<DexInterface />} />
-      <Route path="/faucet" element={<FaucetTab />} />
-      <Route path="/bridge" element={<BridgePage />} />
       <Route path="/analytics" element={<AnalyticsPage />} />
     </Routes>
   )
 }
-
-const BridgePage = () => (
-  <motion.div 
-    style={{ 
-      maxWidth: '800px', 
-      margin: '0 auto', 
-      padding: '2rem',
-      textAlign: 'center'
-    }}
-    initial={{ opacity: 0, y: 20 }} 
-    animate={{ opacity: 1, y: 0 }}
-  >
-    <div className="cauldron-card">
-      <Globe size={64} style={{ margin: '0 auto 2rem', color: 'var(--cauldron-button-inner)' }} />
-      <h2 style={{ marginBottom: '1rem' }}>Cross-Chain Bridge</h2>
-      <p style={{ color: 'var(--cauldron-light-gray)', marginBottom: '2rem' }}>
-        Bridge tokens from Ethereum, Polygon, and other L2s to Linera DEX
-      </p>
-      
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
-        gap: '1rem', 
-        marginBottom: '2rem' 
-      }}>
-        {[
-          { name: 'Ethereum', color: '#627eea' },
-          { name: 'Polygon', color: '#8247e5' },
-          { name: 'Arbitrum', color: '#28a0f0' },
-          { name: 'Optimism', color: '#ff0420' }
-        ].map(({ name, color }) => (
-          <div key={name} className="cauldron-card-dark" style={{ textAlign: 'center' }}>
-            <div style={{ 
-              width: '40px', 
-              height: '40px', 
-              background: color, 
-              borderRadius: '50%', 
-              margin: '0 auto 0.5rem' 
-            }} />
-            <div style={{ fontSize: '0.9rem', color: 'var(--cauldron-light-gray)' }}>{name}</div>
-          </div>
-        ))}
-      </div>
-      
-      <div className="cauldron-card-dark" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
-        <div style={{ color: '#ffc107', fontWeight: '600', marginBottom: '0.5rem' }}>
-          🚧 Coming Soon
-        </div>
-        <div style={{ color: 'var(--cauldron-light-gray)', fontSize: '0.9rem' }}>
-          Cross-chain bridging functionality is currently in development. 
-          Stay tuned for seamless multi-chain token transfers!
-        </div>
-      </div>
-    </div>
-  </motion.div>
-)
 
 const AnalyticsPage = () => (
   <motion.div 
@@ -181,8 +122,6 @@ const NavBar = () => {
             <nav style={{ display: 'flex', gap: '1.5rem' }}>
               {[
                 { path: '/', label: 'Trade', icon: ArrowDownUp },
-                { path: '/faucet', label: 'Faucet', icon: Droplets },
-                { path: '/bridge', label: 'Bridge', icon: ExternalLink },
                 { path: '/analytics', label: 'Analytics', icon: Activity }
               ].map(({ path, label, icon: Icon }) => (
                 <Link
