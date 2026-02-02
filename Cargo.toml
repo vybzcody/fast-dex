@@ -5,7 +5,7 @@ members = ["abi", "dex", "bridge-tracker"]
 [workspace.dependencies]
 async-graphql = { version = "=7.0.17", default-features = false }
 async-graphql-derive = { version = "=7.0.17", default-features = false }
-linera-sdk = { version = "=0.15.11" }
+linera-sdk = { version = "=0.15.8" }
 futures = { version = "0.3" }
 getrandom = { version = "0.2.15", default-features = false, features = ["custom"] }
 log = { version = "0.4.27" }
@@ -13,9 +13,6 @@ rand = { version = "0.8.5" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
 tokio = { version = "1.40", features = ["rt", "sync"] }
-test-log = { version = "0.2.15", default-features = false, features = ["trace"] }
 
 # Internal Dependencies
 abi = { path = "./abi" }
-bridge-tracker = { path = "./bridge-tracker" }
-native-fungible = { path = "./native-fungible" }

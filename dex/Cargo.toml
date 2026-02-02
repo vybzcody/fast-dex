@@ -12,10 +12,10 @@ thiserror = "2.0.3"
 hex = "0.4"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-linera-sdk = { version = "=0.15.11", features = ["test", "wasmer"] }
+linera-sdk = { version = "0.15.8", features = ["test", "wasmer"] }
 
 [dev-dependencies]
-linera-sdk = { version = "=0.15.11", features = ["test"] }
+linera-sdk = { version = "0.15.8", features = ["test"] }
 
 [[bin]]
 name = "dex_contract"
