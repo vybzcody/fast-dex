@@ -95,16 +95,17 @@ pub struct Pool {
 }
 ```
 
+## Deployment Method
+
+This submission uses the **buildathon template with local network** as specified in the requirements, because:
+
+1. FastDEX requires Ethereum bridge functionality via `linera-sdk` ethereum features
+2. Conway testnet doesn't currently support these Ethereum features  
+3. Local Linera networks have full Ethereum support enabled
+
 ## 🚀 Quick Start
 
-### Prerequisites
-
-- **Linera CLI** v0.15.8+ (`cargo install linera-service@0.15.8`)
-- **Rust** v1.86.0+ with `wasm32-unknown-unknown` target
-- **Node.js** LTS (for frontend)
-- **Docker** (optional, for containerized deployment)
-
-### Option 1: Docker Deployment (Recommended for Reviewers)
+### Docker Deployment (Recommended)
 
 ```bash
 # Build and run everything in Docker
@@ -113,24 +114,20 @@ docker compose up --build
 # Access the frontend at http://localhost:5173
 ```
 
-### Option 2: Deployment to Conway Testnet (Required for Demo)
+### Manual Local Deployment
 
 ```bash
-# Add WASM target
+# Prerequisites: Rust 1.86+, Node.js LTS, Linera CLI 0.15.8+
 rustup target add wasm32-unknown-unknown
 
-# Install frontend dependencies
-cd frontend-amm && npm install && cd ..
-
 # Run the deployment script
-./deploy-to-conway.bash
+./run.bash
 ```
 
 The script will:
-1. Initialize a strictly isolated local wallet for the project
-2. Build and deploy the DEX contract to the **Linera Conway Testnet**
-3. Automatically configure the frontend with the new App ID
-4. Instructions will appear to start the frontend (`cd frontend-amm && npm run dev`)
+1. Start local Linera network with Ethereum support
+2. Deploy bridge-tracker and DEX contracts
+3. Configure and launch frontend at localhost:5173
 
 ## 🎮 Usage Example
 
