@@ -33,8 +33,8 @@ export const PoolsTab = ({ userPools, tokens, onAddLiquidity, onCreatePool: _onC
   const tokenList = tokens.map(token => token.symbol);
 
   const handleCreatePool = () => {
-    if (onAddLiquidity && selectedTokenA && selectedTokenB && amountA && amountB) {
-      onAddLiquidity(selectedTokenA, selectedTokenB, amountA, amountB);
+    if (_onCreatePool && selectedTokenA && selectedTokenB && amountA && amountB) {
+      _onCreatePool(selectedTokenA, selectedTokenB, amountA, amountB, 30); // Default 0.3% fee
       setShowCreatePool(false);
       setSelectedTokenA('');
       setSelectedTokenB('');
@@ -271,16 +271,19 @@ export const PoolsTab = ({ userPools, tokens, onAddLiquidity, onCreatePool: _onC
             </div>
 
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button style={{
-                padding: '0.5rem 1rem',
-                background: 'rgba(102, 126, 234, 0.2)',
-                border: '1px solid #667eea',
-                borderRadius: '8px',
-                color: '#667eea',
-                cursor: 'pointer',
-                fontSize: '0.8rem',
-                fontWeight: '600'
-              }}>
+              <button
+                onClick={() => onAddLiquidity && onAddLiquidity(pool.tokenA.symbol, pool.tokenB.symbol, "0", "0")}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: 'rgba(102, 126, 234, 0.2)',
+                  border: '1px solid #667eea',
+                  borderRadius: '8px',
+                  color: '#667eea',
+                  cursor: 'pointer',
+                  fontSize: '0.8rem',
+                  fontWeight: '600'
+                }}
+              >
                 Add
               </button>
               <button style={{

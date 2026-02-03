@@ -7,33 +7,24 @@ import { PoolsTab } from './PoolsTab';
 import { LineraClientAdapter } from '../linera-client';
 import { useBlockchainBalances } from '../hooks/useBlockchainBalances';
 
-interface TokenId {
-  chain: string;
-  address: string;
-  symbol: string;
-}
-
-interface Pool {
-  tokenA: TokenId;
-  tokenB: TokenId;
-  reserveA: string;
-  reserveB: string;
-  totalShares: string;
-  feeRate: number;
-}
+import { Token, Pool } from '../linera-client';
 
 interface TradingToken {
-  id: string;
   symbol: string;
   name: string;
+  network: string;
   totalSupply: number;
-  creator: string;
 }
 
-export const DexInterface = () => {
+interface DexInterfaceProps {
+  balances: Record<string, string>;
+  refreshBalances: () => Promise<void>;
+}
+
+export const DexInterface = ({ balances, refreshBalances }: DexInterfaceProps) => {
   const { primaryWallet } = useDynamicContext();
   const isLoggedIn = useIsLoggedIn();
-  const { balances, loading: balancesLoading, refreshBalances } = useBlockchainBalances();
+  const balancesLoading = false; // Managed at App level or pass loading as prop if needed
 
   const [activeTab, setActiveTab] = useState<'swap' | 'pools'>('swap');
   const [pools, setPools] = useState<Pool[]>([]);
@@ -42,7 +33,7 @@ export const DexInterface = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Swap state
-  const [fromToken, setFromToken] = useState('MOCK_USDC');
+  const [fromToken, setFromToken] = useState('USDC');
   const [toToken, setToToken] = useState('');
   const [swapAmount, setSwapAmount] = useState('');
   const [swapQuote, setSwapQuote] = useState<any>(null);
@@ -109,12 +100,11 @@ export const DexInterface = () => {
 
       // Load faucet tokens as available tokens
       const faucetTokens = await adapter.getFaucetTokens();
-      const tokenList = faucetTokens.map((token: TokenId) => ({
-        id: token.symbol,
+      const tokenList = faucetTokens.map((token: Token) => ({
         symbol: token.symbol,
-        name: token.symbol.replace('MOCK_', ''),
-        totalSupply: 1000000, // This would come from blockchain in real implementation
-        creator: 'faucet'
+        name: token.name || token.symbol,
+        network: token.network,
+        totalSupply: 1000000,
       }));
       setTokens(tokenList);
 
@@ -283,7 +273,7 @@ export const DexInterface = () => {
           { label: 'Active Pools', value: pools.length.toString() },
           { label: 'Available Tokens', value: tokens.length.toString() },
           { label: 'Your Balances', value: Object.keys(balances).length.toString() },
-          { label: 'Network', value: 'Testnet' }
+          { label: 'Network', value: 'Local' }
         ].map(({ label, value }) => (
           <div key={label} className="cauldron-card-dark text-center" style={{ padding: '1rem' }}>
             <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>{value}</div>

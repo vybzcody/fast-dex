@@ -6,19 +6,19 @@ interface WalletSidebarProps {
   isOpen: boolean;
   onClose: () => void;
   walletAddress: string;
+  balances: Record<string, string>;
 }
 
-export const WalletSidebar = ({ isOpen, onClose, walletAddress }: WalletSidebarProps) => {
+export const WalletSidebar = ({ isOpen, onClose, walletAddress, balances }: WalletSidebarProps) => {
   const [activeTab, setActiveTab] = useState<'tokens' | 'pools' | 'activity'>('tokens');
   const [showBalance, setShowBalance] = useState(true);
 
-  const tokens = [
-    { symbol: 'LINERA', amount: 1234.56, value: 3024.12, icon: 'L' },
-    { symbol: 'ETH', amount: 5.67, value: 11340.00, icon: 'E' },
-    { symbol: 'USDC', amount: 890.12, value: 890.12, icon: 'U' },
-    { symbol: 'GAME', amount: 45.78, value: 38.91, icon: 'G' },
-    { symbol: 'STABLE', amount: 234.90, value: 237.25, icon: 'S' }
-  ];
+  const tokens = Object.entries(balances).map(([symbol, amount]) => ({
+    symbol,
+    amount: parseFloat(amount),
+    value: parseFloat(amount), // Simple 1:1 value mapping for now
+    icon: symbol[0]
+  }));
 
   const totalValue = tokens.reduce((sum, token) => sum + token.value, 0);
 
@@ -92,9 +92,9 @@ export const WalletSidebar = ({ isOpen, onClose, walletAddress }: WalletSidebarP
               >
                 <X size={20} />
               </button>
-              
+
               <div style={{ flex: 1 }} />
-              
+
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button style={{
                   background: 'none',
@@ -146,7 +146,7 @@ export const WalletSidebar = ({ isOpen, onClose, walletAddress }: WalletSidebarP
                 <span style={{ fontWeight: '600', color: 'white' }}>FastDEX Wallet</span>
               </div>
 
-              <div 
+              <div
                 onClick={copyAddress}
                 style={{
                   display: 'flex',
@@ -163,7 +163,7 @@ export const WalletSidebar = ({ isOpen, onClose, walletAddress }: WalletSidebarP
                 <Copy size={12} style={{ color: '#888' }} />
               </div>
 
-              <div 
+              <div
                 onClick={() => setShowBalance(!showBalance)}
                 style={{
                   display: 'flex',
@@ -179,9 +179,9 @@ export const WalletSidebar = ({ isOpen, onClose, walletAddress }: WalletSidebarP
                 </span>
                 <ChevronDown size={16} style={{ color: '#888' }} />
               </div>
-              
+
               <div style={{ fontSize: '14px', color: '#888' }}>
-                ({tokens[0].amount.toFixed(2)} LINERA)
+                ({tokens.length > 0 ? tokens[0].amount.toFixed(2) : '0.00'} {tokens.length > 0 ? tokens[0].symbol : ''})
               </div>
             </div>
 
@@ -263,7 +263,7 @@ export const WalletSidebar = ({ isOpen, onClose, walletAddress }: WalletSidebarP
                           </div>
                         </div>
                       </div>
-                      
+
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontWeight: '600', color: 'white', fontSize: '16px' }}>
                           ${token.value.toLocaleString()}

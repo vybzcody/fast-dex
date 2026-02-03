@@ -5,25 +5,26 @@ import { motion } from 'framer-motion'
 import { useDynamicContext, useIsLoggedIn } from '@dynamic-labs/sdk-react-core'
 import { DexInterface } from './components/DexInterface'
 import { WalletSidebar } from './components/WalletSidebar'
+import { useBlockchainBalances } from './hooks/useBlockchainBalances'
 import './App.css'
 
-const AppContent = () => {
+const AppContent = ({ balances, refreshBalances }: { balances: Record<string, string>, refreshBalances: () => Promise<void> }) => {
   return (
     <Routes>
-      <Route path="/" element={<DexInterface />} />
+      <Route path="/" element={<DexInterface balances={balances} refreshBalances={refreshBalances} />} />
       <Route path="/analytics" element={<AnalyticsPage />} />
     </Routes>
   )
 }
 
 const AnalyticsPage = () => (
-  <motion.div 
-    style={{ 
-      maxWidth: '1200px', 
-      margin: '0 auto', 
+  <motion.div
+    style={{
+      maxWidth: '1200px',
+      margin: '0 auto',
       padding: '2rem'
     }}
-    initial={{ opacity: 0, y: 20 }} 
+    initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
   >
     <div style={{ marginBottom: '2rem' }}>
@@ -32,7 +33,7 @@ const AnalyticsPage = () => (
         Real-time insights into FastDEX performance and market data
       </p>
     </div>
-    
+
     <div className="grid-responsive">
       {[
         { title: 'Trading Volume', value: '$2.5M', change: '+15.2%', chart: '📈' },
@@ -63,7 +64,7 @@ const AnalyticsPage = () => (
   </motion.div>
 )
 
-const NavBar = () => {
+const NavBar = ({ balances, refreshBalances }: { balances: Record<string, string>, refreshBalances: () => Promise<void> }) => {
   const location = useLocation();
   const { primaryWallet, setShowAuthFlow, sdkHasLoaded } = useDynamicContext();
   const isLoggedIn = useIsLoggedIn();
@@ -88,16 +89,16 @@ const NavBar = () => {
         animate={{ y: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
       >
-        <div className="container" style={{ 
+        <div className="container" style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           height: '100%'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '3rem' }}>
-            <Link to="/" style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
+            <Link to="/" style={{
+              display: 'flex',
+              alignItems: 'center',
               gap: '0.75rem',
               textDecoration: 'none',
               color: 'white',
@@ -118,7 +119,7 @@ const NavBar = () => {
                 FastDEX
               </span>
             </Link>
-            
+
             <nav style={{ display: 'flex', gap: '1.5rem' }}>
               {[
                 { path: '/', label: 'Trade', icon: ArrowDownUp },
@@ -147,9 +148,9 @@ const NavBar = () => {
               ))}
             </nav>
           </div>
-          
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <motion.div 
+            <motion.div
               style={{
                 padding: '0.5rem 1rem',
                 background: 'rgba(76, 175, 80, 0.15)',
@@ -163,9 +164,9 @@ const NavBar = () => {
             >
               🟢 Linera Testnet
             </motion.div>
-            
+
             {isLoggedIn && primaryWallet ? (
-              <motion.button 
+              <motion.button
                 onClick={() => setShowWalletSidebar(true)}
                 className="cauldron-button"
                 style={{
@@ -181,7 +182,7 @@ const NavBar = () => {
                 <span>{primaryWallet.address.slice(0, 6)}...{primaryWallet.address.slice(-4)}</span>
               </motion.button>
             ) : (
-              <motion.button 
+              <motion.button
                 onClick={() => setShowAuthFlow(true)}
                 className="cauldron-button"
                 style={{
@@ -202,22 +203,25 @@ const NavBar = () => {
       </motion.header>
 
       {/* Wallet Sidebar */}
-      <WalletSidebar 
+      <WalletSidebar
         isOpen={showWalletSidebar}
         onClose={() => setShowWalletSidebar(false)}
         walletAddress={primaryWallet?.address || ''}
+        balances={balances}
       />
     </>
   );
 }
 
 function App() {
+  const { balances, refreshBalances } = useBlockchainBalances();
+
   return (
     <Router>
       <div className="bg-cauldron-dark" style={{ minHeight: '100vh', color: 'white' }}>
-        <NavBar />
+        <NavBar balances={balances} refreshBalances={refreshBalances} />
         <main style={{ paddingTop: '2rem' }}>
-          <AppContent />
+          <AppContent balances={balances} refreshBalances={refreshBalances} />
         </main>
       </div>
     </Router>

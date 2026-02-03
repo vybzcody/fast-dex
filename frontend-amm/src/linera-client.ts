@@ -19,7 +19,20 @@ export interface LineraProvider {
 }
 
 interface LineraConfig {
-  appId: string;
+  dexAppId: string;
+  bridgeTrackerAppId: string;
+  rpcUrl: string;
+  faucetUrl: string;
+}
+
+export interface BridgeToken {
+  symbol: string;
+  network: string;
+}
+
+export interface BridgeTokenInput {
+  symbol: string;
+  network: string;
 }
 
 export interface Pool {
@@ -33,12 +46,10 @@ export interface Pool {
 }
 
 export interface Token {
-  id: string; // ApplicationId
-  name: string;
   symbol: string;
-  decimals: number;
-  chain: string;
-  address: string;
+  network: string;
+  name?: string;
+  decimals?: number;
 }
 
 export interface UserBalance {
@@ -48,41 +59,29 @@ export interface UserBalance {
   appId: string;
 }
 
-// Known tokens map using environment variables
-const KNOWN_TOKENS: Record<string, Token> = {
-  [import.meta.env.REACT_APP_NAT_APP_ID]: {
-    id: import.meta.env.REACT_APP_NAT_APP_ID,
-    name: "Linera Native Token",
+// Supported tokens list
+const SUPPORTED_TOKENS: Token[] = [
+  {
     symbol: "NAT",
+    network: "linera",
+    name: "Linera Native Token",
     decimals: 18,
-    chain: "Linera",
-    address: import.meta.env.REACT_APP_NAT_APP_ID,
   },
-  [import.meta.env.REACT_APP_USDC_APP_ID]: {
-    id: import.meta.env.REACT_APP_USDC_APP_ID,
-    name: "USD Coin",
+  {
     symbol: "USDC",
+    network: "sepolia",
+    name: "USD Coin",
     decimals: 6,
-    chain: "Linera",
-    address: import.meta.env.REACT_APP_USDC_APP_ID,
   },
-  [import.meta.env.REACT_APP_WETH_APP_ID]: {
-    id: import.meta.env.REACT_APP_WETH_APP_ID,
-    name: "Wrapped Ethereum",
+  {
     symbol: "WETH",
+    network: "sepolia",
+    name: "Wrapped Ethereum",
     decimals: 18,
-    chain: "Linera",
-    address: import.meta.env.REACT_APP_WETH_APP_ID,
   },
-  [import.meta.env.REACT_APP_DAI_APP_ID]: {
-    id: import.meta.env.REACT_APP_DAI_APP_ID,
-    name: "Dai Stablecoin",
-    symbol: "DAI",
-    decimals: 18,
-    chain: "Linera",
-    address: import.meta.env.REACT_APP_DAI_APP_ID,
-  },
-};
+];
+
+// getTokenKey removed as it was unused
 
 export class LineraClientAdapter {
   private static instance: LineraClientAdapter | null = null;
@@ -111,8 +110,8 @@ export class LineraClientAdapter {
       if (response.ok) {
         this.config = await response.json();
         console.log('Config loaded:', this.config);
-        if (this.config?.appId) {
-          this.appId = this.config.appId;
+        if (this.config?.dexAppId) {
+          this.appId = this.config.dexAppId;
         }
       } else {
         console.warn('Config not found, relying on manual appId');
@@ -122,22 +121,25 @@ export class LineraClientAdapter {
     }
   }
 
-  async initialize(dynamicWallet: DynamicWallet, appId?: string): Promise<LineraProvider> {
+  async initialize(dynamicWallet: DynamicWallet): Promise<LineraProvider> {
     if (this.provider) return this.provider;
 
     if (!dynamicWallet) {
       throw new Error("Dynamic wallet is required for Linera connection");
     }
 
-    if (appId) {
-      this.appId = appId;
-    } else if (this.config?.appId) {
-      this.appId = this.config.appId;
-    } else {
-      await this.loadConfig();
-      if (!this.appId) {
-        throw new Error("No app ID configured. Call initialize() first or provide appId.");
+    try {
+      if (!this.config) {
+        await this.loadConfig();
       }
+      
+      if (!this.config?.dexAppId) {
+        throw new Error("No dexAppId found in config.json");
+      }
+      this.appId = this.config.dexAppId;
+    } catch (error) {
+      console.error("Initialization error:", error);
+      throw error;
     }
 
     try {
@@ -208,8 +210,14 @@ export class LineraClientAdapter {
     const q = `
       query {
         pools {
-          tokenA
-          tokenB
+          tokenA {
+            symbol
+            network
+          }
+          tokenB {
+            symbol
+            network
+          }
           reserveA
           reserveB
           feeRate
@@ -220,22 +228,15 @@ export class LineraClientAdapter {
     try {
       const data = await this.query(q);
       return (data?.pools || []).map((p: any, index: number) => {
-        // Resolve ApplicationIds to token metadata
-        const tokenA = KNOWN_TOKENS[p.tokenA] || { 
-          id: p.tokenA, 
-          symbol: 'UNK', 
-          name: 'Unknown', 
-          decimals: 0,
-          chain: 'Linera',
-          address: p.tokenA
+        const tokenA: Token = {
+          symbol: p.tokenA.symbol,
+          network: p.tokenA.network,
+          ...SUPPORTED_TOKENS.find(t => t.symbol === p.tokenA.symbol)
         };
-        const tokenB = KNOWN_TOKENS[p.tokenB] || { 
-          id: p.tokenB, 
-          symbol: 'UNK', 
-          name: 'Unknown', 
-          decimals: 0,
-          chain: 'Linera',
-          address: p.tokenB
+        const tokenB: Token = {
+          symbol: p.tokenB.symbol,
+          network: p.tokenB.network,
+          ...SUPPORTED_TOKENS.find(t => t.symbol === p.tokenB.symbol)
         };
 
         return {
@@ -257,52 +258,34 @@ export class LineraClientAdapter {
   async getUserBalances(): Promise<UserBalance[]> {
     if (!this.provider) return [];
     
-    const balances: UserBalance[] = [];
-    
-    // Query each known token application for user balance
-    for (const token of Object.values(KNOWN_TOKENS)) {
-      try {
-        const chain = await this.provider.client.chain(this.provider.chainId);
-        const tokenApp = await chain.application(token.id);
-        
-        // Query the token application for account balances
-        const q = `query { accounts { entries { key, value } } }`;
-        const resultJson = await tokenApp.query(JSON.stringify({ query: q }));
-        const result = JSON.parse(resultJson);
-        
-        if (result.data?.accounts?.entries) {
-          // Find the entry for our owner
-          // Note: This is simplified - in production you'd need proper owner matching
-          for (const entry of result.data.accounts.entries) {
-            if (entry.value && entry.value !== "0") {
-              balances.push({
-                token_id: token.symbol,
-                amount: entry.value,
-                symbol: token.symbol,
-                appId: token.id
-              });
-              break; // Assume one balance per token for simplicity
-            }
+    const q = `
+      query($user: String!) {
+        userBalances(user: $user) {
+          token {
+            symbol
+            network
           }
+          amount
         }
-      } catch (e) {
-        console.warn(`Failed to fetch balance for ${token.symbol}`, e);
-        // Add zero balance for UI consistency
-        balances.push({
-          token_id: token.symbol,
-          amount: "0",
-          symbol: token.symbol,
-          appId: token.id
-        });
       }
+    `;
+    try {
+      const data = await this.query(q, { user: this.provider.address });
+      return (data?.userBalances || []).map((b: any) => ({
+        token_id: b.token.symbol,
+        amount: b.amount,
+        symbol: b.token.symbol,
+        appId: "" 
+      }));
+    } catch (e) {
+      console.error("Error fetching balances:", e);
+      return [];
     }
-    
-    return balances;
   }
 
-  // Legacy faucet method - now returns known tokens
+  // Legacy faucet method - now returns supported tokens
   async getFaucetTokens(): Promise<Token[]> {
-    return Object.values(KNOWN_TOKENS);
+    return SUPPORTED_TOKENS;
   }
 
   // Legacy faucet claim - no longer supported
@@ -312,21 +295,25 @@ export class LineraClientAdapter {
 
   // DEX Mutations
   async swapTokens(fromToken: string, toToken: string, amount: string) {
-    const fromId = Object.values(KNOWN_TOKENS).find(t => t.symbol === fromToken)?.id;
-    const toId = Object.values(KNOWN_TOKENS).find(t => t.symbol === toToken)?.id;
+    const from = SUPPORTED_TOKENS.find(t => t.symbol === fromToken);
+    const to = SUPPORTED_TOKENS.find(t => t.symbol === toToken);
     
-    if (!fromId || !toId) throw new Error("Invalid tokens");
+    if (!from || !to) throw new Error("Invalid tokens");
 
     const mutation = `
-      mutation {
+      mutation($fromToken: BridgeTokenInput!, $toToken: BridgeTokenInput!, $amount: Amount!) {
         swapTokens(
-          fromToken: "${fromId}",
-          toToken: "${toId}",
-          amount: "${amount}"
+          fromToken: $fromToken,
+          toToken: $toToken,
+          amount: $amount
         )
       }
     `;
-    return await this.query(mutation);
+    return await this.query(mutation, {
+      fromToken: { symbol: from.symbol, network: from.network },
+      toToken: { symbol: to.symbol, network: to.network },
+      amount
+    });
   }
 
   async createPool(
@@ -336,23 +323,29 @@ export class LineraClientAdapter {
     amountB: string,
     feeRate: number
   ) {
-    const tokenA = Object.values(KNOWN_TOKENS).find(t => t.symbol === tokenASymbol)?.id;
-    const tokenB = Object.values(KNOWN_TOKENS).find(t => t.symbol === tokenBSymbol)?.id;
+    const tokenA = SUPPORTED_TOKENS.find(t => t.symbol === tokenASymbol);
+    const tokenB = SUPPORTED_TOKENS.find(t => t.symbol === tokenBSymbol);
     
     if (!tokenA || !tokenB) throw new Error("Invalid tokens");
 
     const mutation = `
-      mutation {
+      mutation($tokenA: BridgeTokenInput!, $tokenB: BridgeTokenInput!, $amountA: Amount!, $amountB: Amount!, $feeRate: Int!) {
         createPool(
-          tokenA: "${tokenA}",
-          tokenB: "${tokenB}",
-          amountA: "${amountA}",
-          amountB: "${amountB}",
-          feeRate: ${feeRate}
+          tokenA: $tokenA,
+          tokenB: $tokenB,
+          amountA: $amountA,
+          amountB: $amountB,
+          feeRate: $feeRate
         )
       }
     `;
-    return await this.query(mutation);
+    return await this.query(mutation, {
+      tokenA: { symbol: tokenA.symbol, network: tokenA.network },
+      tokenB: { symbol: tokenB.symbol, network: tokenB.network },
+      amountA,
+      amountB,
+      feeRate
+    });
   }
 
   async addLiquidity(
@@ -361,22 +354,27 @@ export class LineraClientAdapter {
     amountA: string,
     amountB: string
   ) {
-    const tokenA = Object.values(KNOWN_TOKENS).find(t => t.symbol === tokenASymbol)?.id;
-    const tokenB = Object.values(KNOWN_TOKENS).find(t => t.symbol === tokenBSymbol)?.id;
+    const tokenA = SUPPORTED_TOKENS.find(t => t.symbol === tokenASymbol);
+    const tokenB = SUPPORTED_TOKENS.find(t => t.symbol === tokenBSymbol);
     
     if (!tokenA || !tokenB) throw new Error("Invalid tokens");
 
     const mutation = `
-      mutation {
+      mutation($tokenA: BridgeTokenInput!, $tokenB: BridgeTokenInput!, $amountA: Amount!, $amountB: Amount!) {
         addLiquidity(
-          tokenA: "${tokenA}",
-          tokenB: "${tokenB}",
-          amountA: "${amountA}",
-          amountB: "${amountB}"
+          tokenA: $tokenA,
+          tokenB: $tokenB,
+          amountA: $amountA,
+          amountB: $amountB
         )
       }
     `;
-    return await this.query(mutation);
+    return await this.query(mutation, {
+      tokenA: { symbol: tokenA.symbol, network: tokenA.network },
+      tokenB: { symbol: tokenB.symbol, network: tokenB.network },
+      amountA,
+      amountB
+    });
   }
 
   async estimateSwap(
@@ -384,22 +382,26 @@ export class LineraClientAdapter {
     toTokenSymbol: string,
     amount: string
   ): Promise<string> {
-    const fromId = Object.values(KNOWN_TOKENS).find(t => t.symbol === fromTokenSymbol)?.id;
-    const toId = Object.values(KNOWN_TOKENS).find(t => t.symbol === toTokenSymbol)?.id;
+    const from = SUPPORTED_TOKENS.find(t => t.symbol === fromTokenSymbol);
+    const to = SUPPORTED_TOKENS.find(t => t.symbol === toTokenSymbol);
     
-    if (!fromId || !toId) return "0";
+    if (!from || !to) return "0";
 
     const q = `
-      query {
+      query($fromToken: BridgeTokenInput!, $toToken: BridgeTokenInput!, $amount: Amount!) {
         estimateSwap(
-          fromToken: "${fromId}",
-          toToken: "${toId}",
-          amount: "${amount}"
+          fromToken: $fromToken,
+          toToken: $toToken,
+          amount: $amount
         )
       }
     `;
     try {
-      const data = await this.query(q);
+      const data = await this.query(q, {
+        fromToken: { symbol: from.symbol, network: from.network },
+        toToken: { symbol: to.symbol, network: to.network },
+        amount
+      });
       return data?.estimateSwap || "0";
     } catch (e) {
       console.error("Error estimating swap:", e);
